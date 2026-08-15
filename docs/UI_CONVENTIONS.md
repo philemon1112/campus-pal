@@ -32,9 +32,9 @@ return <RealPage data={data} />;
 const loading = status === 'loading';
 return (
   <div>
-    <h1>Upcoming Departures</h1>        {/* static — always visible */}
+    <h1>Places on campus</h1>           {/* static — always visible */}
     <div className="rounded-card border …">  {/* frame — always visible */}
-      {tour ? <Price value={tour.priceMinor} /> : <SkeletonLine className="w-24" />}
+      {location ? <span>{location.name}</span> : <SkeletonLine className="w-24" />}
     </div>
   </div>
 );
@@ -71,8 +71,9 @@ container classes, so the two can't drift apart. Do not build a shared
 
 ❌ `<div className="h-40 animate-pulse rounded-card bg-neutral-100" />`
 ✅ the real card's wrapper, with `<Skeleton>` blocks where the values go
-(see `TripsPage`, which reproduces the accent edge, icon tile, status badge
-and divided action footer).
+(see `FoodJointCardSkeleton`, which lives in the same file as
+`FoodJointCard` and reuses its wrapper classes, thumbnail size, chip row and
+tag row, so the two cannot drift apart).
 
 ### 4. Motion is quiet and identical everywhere
 
@@ -92,15 +93,17 @@ spinners floating in empty space, no full-screen sheets. `index.css` disables
 the pulse under `prefers-reduced-motion`.
 
 **One deliberate exception:** a spinner is allowed *inside a button* on a
-user-initiated action, next to text saying what is happening. The AI planner
-(~66s) does this and additionally previews the plan's real shape below the
-form, rather than replacing the page.
+user-initiated action, next to text saying what is happening.
 
 ### 5. Long waits state their cost
 
 If an operation routinely takes more than a few seconds, say so in words. A
-minute of silent shimmer reads as a hang. See `ItinerariesPage`:
-*"This usually takes about a minute."*
+minute of silent shimmer reads as a hang.
+
+CampusPal has no such operation today — the assistant is held to NFR-3's
+3-5s, so its pending state is an ordinary bubble-shaped skeleton. If the
+assistant ever becomes slow (or the backend ships a synchronous long-running
+endpoint), this rule applies to it.
 
 ### Checklist for a new page
 
@@ -121,5 +124,5 @@ plus the WebKit pseudo-element). Scrolling itself is untouched — wheel,
 trackpad, touch, keyboard and programmatic scrolling all behave normally;
 only the chrome isn't painted.
 
-This keeps the horizontal carousels (Home's destinations, Explore's category
-pills) clean. Don't reintroduce per-element scrollbar styling.
+This keeps the horizontal rows (Explore's category pills, Food's filter and
+cuisine rows) clean. Don't reintroduce per-element scrollbar styling.
