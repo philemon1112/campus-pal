@@ -1,18 +1,13 @@
 import { Bookmark, BookmarkCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Subscription } from 'rxjs';
-import { favoritesApi, getTokens, type FavoriteType } from '@/lib/api';
+import { ApiError, favoritesApi, getTokens, type FavoriteType } from '@/lib/api';
 
-// FR-1.7 — bookmark a location or a food joint.
+// FR-1.7 — bookmark a location or a food joint. Both types are backed.
 //
-// Three honest states rather than one optimistic one:
-//   - signed out        -> the control renders, disabled, saying why;
-//   - type unsupported  -> ditto, because /favorites' `type` enum has no
-//                          LOCATION member yet (API_REQUIREMENTS.md §D);
-//   - signed in + ok    -> a real POST/DELETE against the live endpoint.
-//
-// The alternative — hiding the button when it can't work — would make the
-// screen quietly different for signed-out users and hide a real API gap.
+// Signed out, the control still renders but is disabled and says why. The
+// alternative — hiding it — would make the screen quietly different for
+// signed-out users rather than showing them what an account is for.
 export function SaveButton({
   type,
   itemId,
@@ -27,9 +22,7 @@ export function SaveButton({
   const [error, setError] = useState<string | null>(null);
   const subscription = useRef<Subscription | null>(null);
 
-  const signedIn = getTokens() !== null;
-  const supported = favoritesApi.isSupported(type);
-  const usable = signedIn && supported;
+  const usable = getTokens() !== null;
 
   // Resolve whether this item is already saved. Only worth asking when the
   // call can actually succeed.
@@ -71,18 +64,24 @@ export function SaveButton({
             setFavoriteId(favorite.id);
             setBusy(false);
           },
-          error: () => {
-            setError('Couldn’t save that.');
+          error: (err: unknown) => {
+            // 409 means it's already saved — the lookup above just hadn't
+            // resolved yet. Re-read rather than reporting a failure.
+            if (err instanceof ApiError && err.code === 409) {
+              favoritesApi.listFavorites$(type).subscribe({
+                next: (page) =>
+                  setFavoriteId(page.results.find((f) => f.itemId === itemId)?.id ?? null),
+                error: () => setError('Couldn’t save that.'),
+              });
+            } else {
+              setError('Couldn’t save that.');
+            }
             setBusy(false);
           },
         });
   }
 
-  const hint = !signedIn
-    ? 'Log in to save places'
-    : !supported
-      ? 'Saving campus locations needs a backend change'
-      : undefined;
+  const hint = usable ? undefined : 'Log in to save places';
 
   const Icon = favoriteId ? BookmarkCheck : Bookmark;
 

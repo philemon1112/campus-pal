@@ -8,9 +8,8 @@ import { ROUTES } from '@/lib/routes';
 
 // FR-1.7 — the places a signed-in user has bookmarked.
 //
-// `/favorites` is live, but its `type` enum has no LOCATION member yet, so
-// in practice only food joints can be here. The empty state says so rather
-// than implying the user simply hasn't saved anything.
+// `item` is snapshotted server-side at save time, so the whole list renders
+// from one call with no per-item lookups.
 
 function FavoriteRow({ favorite, onRemove }: { favorite: Favorite; onRemove: (id: string) => void }) {
   const isFood = favorite.type === 'FOOD_JOINT';
@@ -33,17 +32,17 @@ function FavoriteRow({ favorite, onRemove }: { favorite: Favorite; onRemove: (id
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold text-ink-900 dark:text-white">
-            {favorite.item?.name ?? 'Saved place'}
+            {favorite.item?.title ?? 'Saved place'}
           </span>
           <span className="block truncate text-sm text-neutral-500 dark:text-neutral-400">
-            {favorite.item?.subtitle ?? (isFood ? 'Food joint' : 'Campus location')}
+            {isFood ? 'Food joint' : 'Campus location'}
           </span>
         </span>
       </Link>
       <button
         type="button"
         onClick={() => onRemove(favorite.id)}
-        aria-label={`Remove ${favorite.item?.name ?? 'this place'} from saved`}
+        aria-label={`Remove ${favorite.item?.title ?? 'this place'} from saved`}
         className="flex size-10 shrink-0 items-center justify-center rounded-full text-neutral-400 transition hover:bg-neutral-100 hover:text-danger-500 dark:hover:bg-neutral-800"
       >
         <Trash2 className="size-4" />
@@ -116,16 +115,22 @@ export function SavedPage() {
               Nothing saved yet
             </p>
             <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-              Save a food joint from its page. Campus locations can’t be saved yet — the favourites
-              endpoint has no <code className="font-mono text-xs">LOCATION</code> type
-              (docs/API_REQUIREMENTS.md §D).
+              Tap Save on any campus location or food joint and it lands here.
             </p>
-            <Link
-              to={ROUTES.food}
-              className="mt-4 inline-block rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white"
-            >
-              Browse food joints
-            </Link>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link
+                to={ROUTES.explore}
+                className="inline-block rounded-full bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white"
+              >
+                Explore campus
+              </Link>
+              <Link
+                to={ROUTES.food}
+                className="inline-block rounded-full border border-brand-600/30 bg-brand-50 px-5 py-2.5 text-sm font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-700/20 dark:text-brand-500"
+              >
+                Browse food joints
+              </Link>
+            </div>
           </div>
         )}
 
