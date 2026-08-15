@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind v4 defaults `dark:` to prefers-color-scheme, which a manual
+ * switcher can't override. Keying it off a `.dark` class on <html> instead
+ * lets ThemeProvider (src/lib/theme.tsx) drive it, while still defaulting
+ * to the OS preference when the user hasn't chosen.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * CampusPal design tokens. The scale/role structure is inherited from the
+ * app this was forked from; the hues are orange.
+ *
+ * The 500/600 split is load-bearing and not interchangeable:
+ *   - brand-500 (#f97316) is for icons, tints, borders and pin fills —
+ *     things that are never white text on a solid fill. It is only 2.9:1
+ *     against white, so it must NOT back a solid button.
+ *   - brand-600 (#c2410c) is the solid-button fill. 5.0:1 with white text,
+ *     which clears WCAG AA for normal text.
+ * If you ever brighten brand-600, re-check that ratio first.
+ */
+@theme {
+  --font-sans: system-ui, "Segoe UI", Roboto, sans-serif;
+
+  --color-brand-50: #fff4ec;
+  --color-brand-100: #ffe0cc;
+  --color-brand-500: #f97316;
+  --color-brand-600: #c2410c;
+  --color-brand-700: #9a3412;
+
+  --color-ink-900: #14213d;
+  --color-ink-700: #2c3652;
+
+  /* Star ratings and highlights. Shifted from amber #f5a623 to a yellower
+     gold: against an orange brand the old amber read as a slightly-off
+     shade of the same colour rather than a separate accent. */
+  --color-accent-500: #eab308;
+
+  /* Destructive actions only. Pushed to a deeper crimson so it stays
+     distinguishable from brand orange — the previous #c8372f sat close
+     enough to be misread as a primary action. 6.6:1 with white text. */
+  --color-danger-500: #b91c1c;
+  --color-danger-600: #991b1b;
+
+  --color-app-bg: #f6f7fb;
+
+  --radius-card: 1.25rem;
+}
+
+body {
+  margin: 0;
+  /* color-scheme is set on <html> by ThemeProvider so it tracks the chosen
+     theme rather than the OS. */
+  background: var(--color-app-bg);
+}
+
+.dark body {
+  background: #0a0a0a;
+}
+
+/*
+ * Scrollbars are hidden app-wide — scrolling still works exactly as before
+ * (wheel, trackpad, touch, keyboard, and programmatic scrolling are all
+ * unaffected), the chrome just isn't painted. This keeps the horizontal
+ * carousels (Home's destinations, Explore's category pills) from showing a
+ * scrollbar track under the content, and matches the mobile-first design
+ * the app is built around.
+ *
+ * Applied to * rather than only html/body so it also covers the nested
+ * scroll containers; `scrollbar-width` and the WebKit pseudo-element are
+ * both needed for cross-browser coverage.
+ */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * Respect users who ask for less motion: the pulse on every skeleton
+ * (src/components/ui/Skeleton.tsx) is decorative, so drop it to a static
+ * muted block rather than animating.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none;
+  }
+}
