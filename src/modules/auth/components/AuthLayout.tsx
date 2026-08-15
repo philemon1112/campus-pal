@@ -15,7 +15,7 @@ import { ROUTES } from '@/lib/routes';
 // ships no photography), so the pane degrades to a flat brand colour if it
 // fails to load — nothing here depends on it.
 const HERO_IMAGE =
-  'https://images.unsplash.com/photo-1580060839134-75a5edca2e99?w=1600&q=80&auto=format&fit=crop';
+  'https://images.unsplash.com/photo-1562774053-701939374585?w=1600&q=80&auto=format&fit=crop';
 
 export function AuthLayout({
   title,
@@ -35,7 +35,7 @@ export function AuthLayout({
       <div className="px-5 pt-6 pb-10 lg:flex lg:flex-col lg:justify-center lg:px-16 lg:py-16">
         <div className="mx-auto w-full max-w-md">
           <Link to={ROUTES.home} className="text-2xl font-bold text-ink-900 dark:text-white">
-            Voyago
+            CampusPal
           </Link>
 
           <div className="mt-8 lg:mt-10">
@@ -62,11 +62,11 @@ export function AuthLayout({
         />
         <div className="absolute inset-x-0 bottom-0 p-14">
           <h2 className="max-w-md text-balance text-4xl font-bold leading-tight text-white">
-            Discover Ghana, one real journey at a time
+            Never be lost on campus again
           </h2>
           <p className="mt-3 max-w-md text-white/80">
-            Guided tours with real departures and live seat counts — plus a day-by-day plan built
-            around them.
+            Lecture halls, departments, halls of residence and somewhere to eat — with an assistant
+            that can take you there.
           </p>
         </div>
       </div>

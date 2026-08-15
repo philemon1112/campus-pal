@@ -6,7 +6,7 @@ import { SkeletonLine, SkeletonRegion } from '@/components/ui/Skeleton';
 import { ROUTES } from '@/lib/routes';
 import type { UserRole } from '@/lib/api';
 
-// Presentation-only guard for the operator/admin consoles. The API enforces
+// Presentation-only guard for the vendor/admin consoles. The API enforces
 // roles server-side on every call, so this exists to avoid showing someone a
 // console full of buttons that will only ever 403 -- not as a security
 // boundary.
@@ -43,7 +43,7 @@ export function RoleGate({
   }
 
   if (!user || !allow.includes(user.role)) {
-    const roleWords = allow.map((r) => (r === 'OPERATOR' ? 'tour operators' : 'administrators'));
+    const roleWords = allow.map((r) => (r === 'VENDOR' ? 'food vendors' : 'administrators'));
     return (
       <div className="md:mx-auto md:max-w-7xl md:px-8">
         <header className="px-5 pt-6 pb-4 md:px-0 md:pt-10">
@@ -56,8 +56,8 @@ export function RoleGate({
           </p>
           <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
             {user
-              ? 'Your account doesn’t have access. These accounts are provisioned by the Voyago team — public sign-up always creates a tourist account.'
-              : 'Sign in with an operator account to continue.'}
+              ? 'Your account doesn’t have access. Vendor and administrator accounts are provisioned by the CampusPal team — public sign-up always creates a student account.'
+              : 'Sign in with an account that has access to continue.'}
           </p>
           {!user && (
             <Link

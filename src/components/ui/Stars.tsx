@@ -1,7 +1,7 @@
 import { Star } from 'lucide-react';
 
-// Shared star rating display + input. Used by the tour reviews list and the
-// "rate your trip" form so both speak the same visual language.
+// Shared star rating display + input. Used by the food-joint reviews list
+// and its rating form so both speak the same visual language (FR-2.8).
 
 const SIZES = { sm: 'size-3.5', md: 'size-4', lg: 'size-8' } as const;
 

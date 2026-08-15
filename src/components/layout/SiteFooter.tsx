@@ -10,21 +10,16 @@ import { ROUTES } from '@/lib/routes';
 // never render a link to a page we don't have.
 const columns: { heading: string; links: { label: string; to: string }[] }[] = [
   {
-    heading: 'Discover',
+    heading: 'Campus',
     links: [
-      { label: 'Explore tours', to: ROUTES.explore },
-      { label: 'Plan a trip with AI', to: ROUTES.itineraries },
-      { label: 'Hotels', to: ROUTES.hotels },
-      { label: 'Food & drinks', to: ROUTES.food },
+      { label: 'Explore campus', to: ROUTES.explore },
+      { label: 'Food joints', to: ROUTES.food },
+      { label: 'Saved places', to: ROUTES.saved },
     ],
   },
   {
-    heading: 'Travel',
-    links: [
-      { label: 'Flights', to: ROUTES.flights },
-      { label: 'Local transport', to: ROUTES.transport },
-      { label: 'My trips', to: ROUTES.trips },
-    ],
+    heading: 'Assistant',
+    links: [{ label: 'Past conversations', to: ROUTES.assistantHistory }],
   },
   {
     heading: 'Account',
@@ -43,17 +38,11 @@ export function SiteFooter() {
       <div className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[1.5fr_repeat(3,1fr)]">
           <div className="max-w-xs">
-            <span className="text-xl font-bold">Voyago</span>
+            <span className="text-xl font-bold">CampusPal</span>
             <p className="mt-3 text-sm leading-relaxed text-white/70">
-              Discover Ghana — guided tours, real departures, and a day-by-day plan built around
-              them.
+              Find your way around University of Ghana, Legon — campus locations, directions and
+              food joints, with an assistant that can do it for you.
             </p>
-            <Link
-              to={ROUTES.emergency}
-              className="mt-5 inline-flex items-center gap-2 rounded-full bg-danger-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-danger-600"
-            >
-              Emergency help
-            </Link>
           </div>
 
           {columns.map((column) => (
@@ -74,7 +63,7 @@ export function SiteFooter() {
 
         <div className="mt-12 border-t border-white/10 pt-6">
           <p className="text-sm text-white/50">
-            © {new Date().getFullYear()} Voyago · Tourism Management System
+            © {new Date().getFullYear()} CampusPal · University of Ghana, Legon
           </p>
         </div>
       </div>

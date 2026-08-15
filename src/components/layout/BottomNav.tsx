@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { navTabsFor, type NavTab } from './navTabs';
 import { useAuth } from '@/hooks/useAuth';
-import { ROUTES } from '@/lib/routes';
+import { AssistantFab } from '@/modules/assistant/components/AssistantFab';
 
 function TabLink({ to, label, icon: Icon, end }: NavTab) {
   return (
@@ -20,10 +20,12 @@ function TabLink({ to, label, icon: Icon, end }: NavTab) {
   );
 }
 
-// Mobile only (<md) — tablet/desktop use TopNav instead. SOS sits raised in
-// the tab bar's old "Bookings" slot (see navTabs.ts) rather than floating
-// over page content — an intentional Figma deviation for a safety-critical,
-// always-reachable action (FR-EMRG-08), noted in DEVELOPMENT_LOG.md.
+// Mobile only (<md) — tablet/desktop use TopNav instead.
+//
+// The assistant button sits raised in the middle of the bar rather than
+// floating over page content. SRS §4.1 describes a floating action button;
+// this placement satisfies the same requirement (FR-3.1: reachable from all
+// pages) without permanently obscuring a corner of every screen.
 //
 // Pinned to the *viewport*, so it stays put through any amount of scrolling.
 // The bar itself spans the full width (it reads as a native app tab bar);
@@ -45,13 +47,7 @@ export function BottomNav() {
         ))}
 
         <div className="flex flex-1 items-center justify-center">
-          <NavLink
-            to={ROUTES.emergency}
-            aria-label="Emergency SOS"
-            className="-mt-7 flex size-16 items-center justify-center rounded-full bg-danger-500 text-xs font-bold text-white shadow-lg shadow-danger-500/30 ring-4 ring-white transition hover:bg-danger-600 dark:ring-neutral-950"
-          >
-            SOS
-          </NavLink>
+          <AssistantFab variant="raised" />
         </div>
 
         {rightTabs.map((tab) => (

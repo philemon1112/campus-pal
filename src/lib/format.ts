@@ -12,6 +12,14 @@ export function formatMoney(minorUnits: number, currency: string): string {
   return new Intl.NumberFormat('en', { style: 'currency', currency }).format(minorUnits / 100);
 }
 
+// Food joints carry a 1-4 price tier rather than an amount; rendered as ₵ to
+// ₵₵₵₵. Lives here rather than beside FoodJointCard so both the card and the
+// detail page can import it without breaking Fast Refresh's "a component
+// file exports only components" rule.
+export function priceTierLabel(tier: number): string {
+  return '₵'.repeat(Math.max(1, Math.min(4, tier)));
+}
+
 export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;

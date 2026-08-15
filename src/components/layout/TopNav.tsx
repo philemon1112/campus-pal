@@ -1,14 +1,13 @@
-import { AlertCircle } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { navTabsFor } from './navTabs';
 import { ROUTES } from '@/lib/routes';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { AssistantFab } from '@/modules/assistant/components/AssistantFab';
 import { getInitials } from '@/lib/format';
 
-// Tablet/desktop only (md+) — mobile uses BottomNav instead. No Figma
-// desktop reference exists; built consistent with the mobile nav's
-// labels, icons, and brand tokens.
+// Tablet/desktop only (md+) — mobile uses BottomNav instead. Built
+// consistent with the mobile nav's labels, icons and brand tokens.
 export function TopNav() {
   const { user } = useAuth();
 
@@ -16,7 +15,7 @@ export function TopNav() {
     <header className="sticky top-0 z-20 hidden border-b border-neutral-200 bg-white/90 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90 md:block">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-8 px-6 lg:px-8">
         <NavLink to={ROUTES.home} className="text-lg font-bold text-ink-900 dark:text-white">
-          Voyago
+          CampusPal
         </NavLink>
 
         <nav className="flex flex-1 items-center gap-1">
@@ -40,12 +39,9 @@ export function TopNav() {
 
         <ThemeToggle />
 
-        <NavLink
-          to={ROUTES.emergency}
-          className="flex items-center gap-1.5 rounded-full bg-danger-500 px-4 py-2 text-sm font-semibold text-white hover:bg-danger-600"
-        >
-          <AlertCircle className="size-4" /> Emergency
-        </NavLink>
+        {/* FR-3.1 — the assistant's desktop entry point. Mobile gets the
+            raised button in BottomNav. */}
+        <AssistantFab />
 
         {user ? (
           <NavLink

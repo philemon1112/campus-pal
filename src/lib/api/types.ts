@@ -1,8 +1,16 @@
-// Types matching the live TMS API (see docs/DEVELOPMENT_LOG.md for how these
-// were derived from GET /api/docs-json). This is the API actually available
-// for integration — narrower than the full SRS vision in src/types/: it
-// covers Auth, Destinations, Tours (+ Departures), Bookings, Payments
-// (Paystack), Reviews, and user/loyalty profile only.
+// Shared API types for CampusPal.
+//
+// Two different things live in this file and it matters which is which:
+//
+//   1. Shapes the live backend returns TODAY (envelope, pagination, auth,
+//      user profile, food joints via ./restaurants.ts).
+//   2. Shapes CampusPal needs but the backend does not implement yet —
+//      campus Locations, the AI assistant, food-joint reviews. These are
+//      written here as the contract the UI is built against, and every one
+//      of them is specced for the backend team in docs/API_REQUIREMENTS.md.
+//
+// Group 2 is typed, not faked. A screen backed by a group-2 type renders its
+// real markup and an honest empty state; it never invents rows to fill in.
 
 export interface ApiEnvelope<T> {
   code: number;
@@ -18,7 +26,14 @@ export interface ApiPage<T> {
   totalPages: number;
 }
 
-export type UserRole = 'TOURIST' | 'OPERATOR' | 'ADMIN';
+// --- Accounts ---
+
+// SRS 2.3 describes five user classes. The live backend still uses the
+// tourism app's enum (`TOURIST | OPERATOR | ADMIN`), so the extra members
+// below will 403 until the backend renames them — see
+// docs/API_REQUIREMENTS.md §D. `RoleGate` is presentation only, so an
+// unmapped role simply means the console isn't offered.
+export type UserRole = 'STUDENT' | 'STAFF' | 'VISITOR' | 'VENDOR' | 'ADMIN';
 
 export interface AuthTokens {
   accessToken: string;
@@ -32,167 +47,159 @@ export interface UserProfile {
   phone: string | null;
   avatarUrl: string | null;
   role: UserRole;
-  loyaltyPoints: number;
 }
 
-export type LoyaltyTier = 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
+// --- Campus locations (SRS 3.1) — NOT YET IMPLEMENTED BY THE BACKEND ---
 
-export interface LoyaltyInfo {
-  points: number;
-  tier: LoyaltyTier;
-}
+// SRS FR-1.1's six groups, verbatim.
+export const LOCATION_CATEGORIES = [
+  'LECTURE_HALL',
+  'DEPARTMENT',
+  'PARK_FIELD',
+  'HOSTEL_HALL',
+  'ADMINISTRATION',
+  'OTHER',
+] as const;
 
-export interface Destination {
+export type LocationCategory = (typeof LOCATION_CATEGORIES)[number];
+
+export const LOCATION_CATEGORY_LABELS: Record<LocationCategory, string> = {
+  LECTURE_HALL: 'Lecture Halls',
+  DEPARTMENT: 'Departments',
+  PARK_FIELD: 'Parks & Fields',
+  HOSTEL_HALL: 'Hostels & Halls',
+  ADMINISTRATION: 'Administration',
+  OTHER: 'Other',
+};
+
+export interface CampusLocation {
   id: string;
+  slug: string;
   name: string;
-  region: string;
-  country: string;
-  description: string;
-  heroImageUrl: string | null;
+  category: LocationCategory;
+  description?: string;
+  lat: number;
+  lng: number;
+  // SRS 6.1 says "Photo(s)" — plural. The tourism API only ever carried one
+  // hero image per record, which is why this is specced as an array.
+  photos: string[];
+  // SRS 6.1 "Associated Building/Landmark notes" — e.g. "second floor,
+  // above the Registry".
+  buildingNotes?: string;
+  // Only present when the request supplied lat/lng.
+  distanceKm?: number;
+}
+
+export interface LocationsQuery {
+  [key: string]: string | number | boolean | undefined;
+  page?: number;
+  limit?: number;
+  q?: string;
+  category?: LocationCategory;
   lat?: number;
   lng?: number;
+  radiusKm?: number;
 }
 
-export type TourStatus = 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'SUSPENDED';
+export interface CreateLocationInput {
+  name: string;
+  category: LocationCategory;
+  description?: string;
+  lat: number;
+  lng: number;
+  photos?: string[];
+  buildingNotes?: string;
+}
 
-export interface Tour {
+export type UpdateLocationInput = Partial<CreateLocationInput>;
+
+// --- Favourites (SRS FR-1.7) ---
+
+// The live endpoint exists but its enum is the tourism one
+// (`TOUR|STAY|RESTAURANT|DESTINATION`). `FOOD_JOINT` maps onto `RESTAURANT`
+// today; `LOCATION` has no server-side equivalent yet, which is why saving a
+// campus location is inert. See docs/API_REQUIREMENTS.md §D.
+export type FavoriteType = 'LOCATION' | 'FOOD_JOINT';
+
+export interface Favorite {
   id: string;
-  operatorId: string;
-  destinationId: string;
-  title: string;
-  slug: string;
-  description: string;
-  priceMinor: number; // minor currency unit, e.g. pesewas for GHS
-  currency: string;
-  durationMinutes: number;
-  status: TourStatus;
-  heroImageUrl: string | null;
-  ratingAvg: number;
-  ratingCount: number;
-}
-
-// The integration guide's enum table lists only these two. An earlier
-// 'CLOSED' member was carried over from a draft of the OpenAPI spec and
-// never appeared in a real response — removed rather than left to invite
-// dead branches.
-export type DepartureStatus = 'SCHEDULED' | 'CANCELLED';
-
-export interface Departure {
-  id: string;
-  tourId: string;
-  departsAt: string;
-  capacity: number;
-  seatsLeft: number;
-  status: DepartureStatus;
-}
-
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
-
-// The ?status= filter on GET /bookings/me is NOT the BookingStatus enum --
-// it takes these three UI-tab names and maps them server-side (upcoming
-// covers PENDING + CONFIRMED). Passing 'PENDING' returns a 400.
-export type BookingListFilter = 'upcoming' | 'completed' | 'cancelled';
-
-// GET /bookings/me returns UNIFIED trips: tours plus stay/flight/table
-// reservations. `itemType` discriminates them, and the tour-only fields are
-// optional because a hotel or flight row simply doesn't carry them.
-export type BookableType = 'TOUR' | 'STAY' | 'FLIGHT' | 'TABLE';
-
-export interface Booking {
-  reference: string;
-  itemType?: BookableType; // absent on the single-booking endpoint
-  totalMinor: number;
-  currency: string;
-  status: BookingStatus;
-  createdAt: string;
-  // Tour bookings only.
-  departureId?: string;
-  seats?: number;
-  // Display summary of whatever was booked.
+  type: FavoriteType;
+  itemId: string;
   item?: {
     id: string;
     slug?: string;
-    title: string;
+    name: string;
     subtitle?: string;
     imageUrl?: string;
-    startsAt?: string;
   };
+  createdAt: string;
 }
 
-export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
-
-export interface Payment {
-  providerRef: string;
-  status: PaymentStatus;
-  amountMinor: number;
-  currency: string;
-  authorizationUrl?: string;
-}
-
-export interface UploadResult {
-  url: string;
-  publicId: string;
-}
+// --- Reviews (SRS FR-2.8) — NOT YET IMPLEMENTED BY THE BACKEND ---
 
 export interface Review {
   id: string;
-  tourId: string;
-  authorId: string;
-  rating: number;
+  rating: number; // 1-5
   body: string;
   createdAt: string;
+  // The tourism API's review payload carried an `authorId` and no name, so
+  // its review list deliberately showed no identity. Specced with an author
+  // summary here so CampusPal's cards can attribute feedback.
+  author?: { fullName: string; avatarUrl?: string };
 }
 
-// --- AI itinerary planner ---
-// Shapes verified against a real POST /itineraries/generate response
-// (Cape Coast, 2 days) rather than the OpenAPI spec, which types `plan` as
-// an opaque object.
-
-export type ItineraryPeriod = 'morning' | 'afternoon' | 'evening';
-
-export type ItineraryItemKind = 'TOUR' | 'MEAL' | 'FREE' | 'TIP';
-
-export interface ItineraryItem {
-  period: ItineraryPeriod;
-  kind: ItineraryItemKind;
-  title: string;
-  description: string;
-  estimatedCostMinor?: number;
-  // The model is only allowed to reference tours that really exist —
-  // invented ones are stripped server-side and downgraded to bookable:false.
-  // tourId/tourSlug are therefore only safe to read when bookable is true.
-  bookable: boolean;
-  tourId?: string;
-  tourSlug?: string;
+export interface CreateReviewInput {
+  rating: number;
+  body: string;
 }
 
-export interface ItineraryPlanDay {
-  day: number; // 1-based
-  title: string;
-  items: ItineraryItem[];
+// --- AI assistant (SRS 3.3) — NOT YET IMPLEMENTED BY THE BACKEND ---
+
+// FR-3.5 is the reason this is a closed, discriminated union rather than
+// free text: the client executes these, and it cannot safely act on prose.
+// Anything the assistant wants the app to DO has to arrive as one of these.
+export type AssistantAction =
+  | { type: 'OPEN_LOCATION'; slug: string; name: string }
+  | { type: 'OPEN_FOOD_JOINT'; slug: string; name: string }
+  | { type: 'SHOW_DIRECTIONS'; lat: number; lng: number; name: string }
+  | { type: 'CONTACT_FOOD_JOINT'; slug: string; name: string; channel: 'CALL' | 'WHATSAPP' }
+  | { type: 'SAVE_FAVORITE'; favoriteType: FavoriteType; itemId: string; name: string };
+
+// Inline result cards. `kind` picks which card component renders the row, so
+// a chat result and a list result stay the same component.
+export interface AssistantResults {
+  kind: 'LOCATION' | 'FOOD_JOINT';
+  items: unknown[];
 }
 
-export interface ItineraryPlan {
-  summary: string;
-  estimatedTotalMinor?: number;
-  notes?: string[];
-  days: ItineraryPlanDay[];
+export interface AssistantMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  actions?: AssistantAction[];
+  results?: AssistantResults[];
 }
 
-// Note: `days` here is the requested trip length (a number), while
-// `plan.days` is the generated day-by-day array. Both come from the API
-// under that name.
-export interface Itinerary {
+export interface AssistantReply {
+  // Echoed back so a guest can keep one conversation without an account
+  // (SRS 6.1 makes Chat Session.User ID nullable).
+  sessionId: string;
+  reply: string;
+  actions: AssistantAction[];
+  results?: AssistantResults[];
+}
+
+export interface AssistantSession {
   id: string;
   title: string;
-  destinationName: string;
-  days: number;
-  budgetMinor?: number;
-  partySize: number;
-  interests: string[];
-  model: string;
   createdAt: string;
-  plan: ItineraryPlan;
+  messageCount: number;
+}
+
+export interface SendMessageInput {
+  sessionId?: string;
+  message: string;
 }
 
 // --- Request payloads ---
@@ -214,68 +221,7 @@ export interface UpdateProfileInput {
   avatarUrl?: string;
 }
 
-export interface ToursQuery {
-  page?: number;
-  limit?: number;
-  q?: string; // server-side text search
-  destinationId?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  sort?: string;
-}
-
-// --- Operator/admin write payloads ---
-// The API whitelists DTO fields, so an unknown extra key is a 400 -- keep
-// these exactly in step with the integration guide's tables.
-
-export interface CreateTourInput {
-  title: string;
-  destinationId: string;
-  description: string;
-  priceMinor: number;
-  durationMinutes: number;
-  heroImageUrl?: string;
-}
-
-// destinationId is deliberately absent: PATCH /tours/:id accepts a partial
-// of the create body *except* destinationId, which is fixed at creation.
-export type UpdateTourInput = Partial<Omit<CreateTourInput, 'destinationId'>>;
-
-export interface CreateDepartureInput {
-  departsAt: string; // ISO 8601
-  capacity: number; // >= 1
-}
-
-export interface CreateDestinationInput {
-  name: string;
-  region: string;
-  country?: string;
-  description: string;
-  heroImageUrl?: string;
-  lat?: number;
-  lng?: number;
-}
-
-export type UpdateDestinationInput = Partial<CreateDestinationInput>;
-
-export interface CreateBookingInput {
-  departureId: string;
-  seats: number;
-}
-
-export interface InitiatePaymentInput {
-  bookingReference: string;
-}
-
-export interface CreateReviewInput {
-  rating: number;
-  body: string;
-}
-
-export interface GenerateItineraryInput {
-  destination: string; // 2-120 chars
-  days: number; // 1-14
-  budgetMinor?: number; // GHS pesewas, >= 0
-  partySize?: number; // 1-20, defaults to 1 server-side
-  interests?: string[]; // up to 10, each 1-40 chars
+export interface UploadResult {
+  url: string;
+  publicId: string;
 }

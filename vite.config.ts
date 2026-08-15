@@ -35,12 +35,11 @@ export default defineConfig({
       },
       workbox: {
         // SPA client-side routing: serve the cached shell for any
-        // navigation that isn't a real asset, but never for API/socket
-        // traffic — that must always hit the live network, not a cached
-        // HTML fallback (see docs/HANDOFF.md on the backend's real-time
-        // and payment flows).
+        // navigation that isn't a real asset, but never for API traffic —
+        // that must always hit the live network, not a cached HTML
+        // fallback.
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io\//],
+        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
@@ -66,21 +65,13 @@ export default defineConfig({
     // The live API (see .env.example) sends no CORS headers, so the
     // browser can't call it directly in dev. Proxying server-to-server
     // here sidesteps that for local development only — it does NOT fix
-    // the underlying issue for the production build. See
-    // docs/DEVELOPMENT_LOG.md ("CORS blocker") for details.
+    // the underlying issue for a production build, which needs either
+    // CORS on the backend or a same-origin reverse proxy in front of
+    // both apps. See docs/API_REQUIREMENTS.md §D.
     proxy: {
       '/api': {
         target: 'https://tms-api-m7yf.onrender.com',
         changeOrigin: true,
-      },
-      // Socket.IO (src/lib/api/socket.ts) is blocked by the same missing
-      // CORS headers, so it's proxied too. `ws: true` is required for the
-      // transport upgrade — without it the handshake succeeds but the
-      // connection silently stays stuck on HTTP long-polling.
-      '/socket.io': {
-        target: 'https://tms-api-m7yf.onrender.com',
-        changeOrigin: true,
-        ws: true,
       },
     },
   },

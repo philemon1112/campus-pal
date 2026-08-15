@@ -1,10 +1,10 @@
 import {
-  Briefcase,
+  Bookmark,
   Compass,
-  Home as HomeIcon,
   ShieldCheck,
   Store,
   User,
+  Utensils,
   type LucideIcon,
 } from 'lucide-react';
 import { ROUTES } from '@/lib/routes';
@@ -17,27 +17,31 @@ export interface NavTab {
   end?: boolean;
 }
 
-// Shared between BottomNav (mobile) and TopNav (tablet/desktop). "Bookings"
-// (Calendar icon) was dropped — it was a dead placeholder duplicating
-// My Trips (see DEVELOPMENT_LOG.md); BottomNav puts the SOS button in its
-// old slot instead. /bookings redirects to /trips (see App.tsx).
-const touristTabs: NavTab[] = [
-  { to: ROUTES.home, label: 'Home', icon: HomeIcon, end: true },
+// Shared between BottomNav (mobile) and TopNav (tablet/desktop).
+//
+// SRS §4.1 specifies two main tabs — Explore and Food Joints. Saved and
+// Profile are the account surface, and the AI assistant is NOT here: it is a
+// persistent floating button (FR-3.1) so it stays reachable from every
+// screen, including ones that aren't tabs.
+//
+// The tab count is even on purpose: BottomNav splits this list down the
+// middle and puts the assistant button in the gap.
+const baseTabs: NavTab[] = [
   { to: ROUTES.explore, label: 'Explore', icon: Compass },
-  { to: ROUTES.trips, label: 'My Trips', icon: Briefcase },
+  { to: ROUTES.food, label: 'Food', icon: Utensils },
+  { to: ROUTES.saved, label: 'Saved', icon: Bookmark },
   { to: ROUTES.profile, label: 'Profile', icon: User },
 ];
 
-// Operator and admin consoles are additive: a TOURIST (and a signed-out
-// visitor) sees exactly the four tabs above. This is presentation only --
-// the routes themselves are guarded by RoleGate, and the API enforces the
-// role server-side regardless.
+// Vendor and admin consoles are additive: a student, staff member or signed-
+// out visitor sees exactly the four tabs above. This is presentation only —
+// the routes are guarded by RoleGate and the API enforces roles server-side.
 export function navTabsFor(role?: UserRole): NavTab[] {
-  if (role === 'OPERATOR') {
-    return [...touristTabs, { to: ROUTES.operator, label: 'Operator', icon: Store }];
+  if (role === 'VENDOR') {
+    return [...baseTabs, { to: ROUTES.vendor, label: 'My joint', icon: Store }];
   }
   if (role === 'ADMIN') {
-    return [...touristTabs, { to: ROUTES.admin, label: 'Admin', icon: ShieldCheck }];
+    return [...baseTabs, { to: ROUTES.adminLocations, label: 'Admin', icon: ShieldCheck }];
   }
-  return touristTabs;
+  return baseTabs;
 }

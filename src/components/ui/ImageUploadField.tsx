@@ -7,7 +7,7 @@ import { ApiError, uploadsApi } from '@/lib/api';
 // 503 when it isn't, so "paste a URL instead" has to be a first-class path
 // rather than an afterthought.
 //
-// Shared by the operator tour form and the admin destination form; both
+// Shared by the admin location form and the vendor listing form; both
 // store a hosted image URL in the same way.
 export function ImageUploadField({
   label,
