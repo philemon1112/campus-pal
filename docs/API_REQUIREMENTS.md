@@ -5,6 +5,10 @@ already exists** in this repo and to a numbered requirement in
 `CampusPal_SRS.md` — this is not a wishlist, it is the data those screens are
 currently rendering an honest empty state in place of.
 
+> **Implementing this?** [`API_CONTRACT.md`](API_CONTRACT.md) is the same
+> scope written as a wire contract — copy-pasteable curls and the exact JSON
+> the frontend parses. This document is the *why*; that one is the *what*.
+
 > **Current state.** CampusPal is built against the API at
 > `https://tms-api-m7yf.onrender.com/api/v1` (63 paths, audited 2026-08-15
 > from `GET /api/docs-json`). That API was built for a tourism product. Of

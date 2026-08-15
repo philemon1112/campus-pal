@@ -2,9 +2,11 @@
 
 Snapshot of exactly where things stand, for picking this up cold. For what
 the app is *supposed* to do, see [`../CampusPal_SRS.md`](../CampusPal_SRS.md).
-For what the backend still owes us, see
-[`API_REQUIREMENTS.md`](API_REQUIREMENTS.md). For the loading-state contract
-every page must follow, see [`UI_CONVENTIONS.md`](UI_CONVENTIONS.md).
+For what the backend still owes us and why, see
+[`API_REQUIREMENTS.md`](API_REQUIREMENTS.md); for the exact wire contract to
+implement it against — curls and response bodies — see
+[`API_CONTRACT.md`](API_CONTRACT.md). For the loading-state contract every
+page must follow, see [`UI_CONVENTIONS.md`](UI_CONVENTIONS.md).
 
 **Last updated:** 2026-08-15 (initial build)
 
