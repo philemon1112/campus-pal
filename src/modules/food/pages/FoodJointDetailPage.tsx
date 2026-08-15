@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/Skeleton';
 import { Stars, StarInput } from '@/components/ui/Stars';
 import { SaveButton } from '@/components/ui/SaveButton';
+import { ActionLink } from '@/components/ui/ActionLink';
 import { formatMoney, formatDate, priceTierLabel } from '@/lib/format';
 import { directionsUrl } from '@/lib/geo';
 import { ROUTES } from '@/lib/routes';
@@ -455,40 +456,30 @@ export function FoodJointDetailPage() {
       <div className="fixed inset-x-0 bottom-16 z-10 border-t border-neutral-200 bg-white/95 px-5 py-3 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95 md:static md:mt-4 md:border-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none dark:md:bg-transparent">
         <div className="mx-auto max-w-md md:max-w-none">
           <div className="flex items-center gap-2">
-            <a
+            <ActionLink
               href={telHref}
-              aria-disabled={!telHref}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-600 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 md:flex-none md:px-6 ${
-                telHref ? '' : 'pointer-events-none opacity-50'
-              }`}
+              disabledTitle="No phone number published for this food joint"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-600 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 md:flex-none md:px-6"
             >
               <Phone className="size-4" /> Call
-            </a>
-            <a
+            </ActionLink>
+            <ActionLink
               href={whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-disabled={!whatsappHref}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border border-brand-600/30 bg-brand-50 py-3 text-sm font-semibold text-brand-700 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-700/20 dark:text-brand-500 dark:hover:bg-brand-700/30 md:flex-none md:px-6 ${
-                whatsappHref ? '' : 'pointer-events-none opacity-50'
-              }`}
+              external
+              disabledTitle="No WhatsApp number published for this food joint"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-brand-600/30 bg-brand-50 py-3 text-sm font-semibold text-brand-700 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-700/20 dark:text-brand-500 dark:hover:bg-brand-700/30 md:flex-none md:px-6"
             >
               <MessageCircle className="size-4" /> WhatsApp
-            </a>
-            <a
-              href={
-                joint ? directionsUrl({ lat: joint.lat, lng: joint.lng }) : undefined
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-disabled={!joint}
+            </ActionLink>
+            <ActionLink
+              href={joint ? directionsUrl({ lat: joint.lat, lng: joint.lng }) : undefined}
+              external
               aria-label="Directions"
-              className={`flex size-12 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-ink-900 transition hover:bg-neutral-200 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 ${
-                joint ? '' : 'pointer-events-none opacity-50'
-              }`}
+              disabledTitle="Still loading"
+              className="flex size-12 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-ink-900 transition hover:bg-neutral-200 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
             >
               <Navigation className="size-5" />
-            </a>
+            </ActionLink>
             {joint && <SaveButton type="FOOD_JOINT" itemId={joint.id} className="shrink-0" />}
           </div>
 

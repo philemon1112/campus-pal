@@ -5,6 +5,7 @@ import { locationsApi, LOCATION_CATEGORY_LABELS } from '@/lib/api';
 import { useApiResource } from '@/hooks/useApiResource';
 import { Skeleton, SkeletonChip, SkeletonLine, SkeletonText } from '@/components/ui/Skeleton';
 import { SaveButton } from '@/components/ui/SaveButton';
+import { ActionLink } from '@/components/ui/ActionLink';
 import { directionsUrl } from '@/lib/geo';
 import { CAMPUS_ZOOM, UG_LEGON } from '@/lib/campus';
 import { ROUTES } from '@/lib/routes';
@@ -169,17 +170,16 @@ export function LocationDetailPage() {
       <div className="fixed inset-x-0 bottom-16 z-10 border-t border-neutral-200 bg-white/95 px-5 py-3 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95 md:static md:mt-8 md:border-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none dark:md:bg-transparent">
         <div className="mx-auto flex max-w-md items-center gap-2 md:max-w-none">
           {/* FR-1.5 */}
-          <a
+          <ActionLink
             href={location ? directionsUrl({ lat: location.lat, lng: location.lng }) : undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-disabled={!location}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-600 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 md:flex-none md:px-8 ${
-              location ? '' : 'pointer-events-none opacity-50'
-            }`}
+            external
+            disabledTitle={
+              failed ? 'This location isn’t available yet' : 'Still loading this location'
+            }
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-600 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 md:flex-none md:px-8"
           >
             <Navigation className="size-4" /> Directions
-          </a>
+          </ActionLink>
           {location && <SaveButton type="LOCATION" itemId={location.id} />}
         </div>
       </div>
