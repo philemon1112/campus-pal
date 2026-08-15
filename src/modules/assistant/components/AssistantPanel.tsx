@@ -2,6 +2,7 @@ import { Bot, Navigation, MapPin, MessageCircle, Phone, Send, Sparkles, Utensils
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  ApiError,
   favoritesApi,
   type AssistantAction,
   type AssistantMessage,
@@ -25,9 +26,9 @@ import { ROUTES } from '@/lib/routes';
 // directions, placing a call — rather than printing a suggestion and leaving
 // the user to find the screen themselves.
 //
-// Nothing here simulates a reply. While the backend has no /assistant/chat
-// endpoint the panel renders its full shell and says so once; it does not
-// hand back canned answers (CLAUDE.md: never fabricate data).
+// Replies stream in (see src/lib/assistant.tsx), so an assistant bubble
+// grows as the text is generated. Actions and result cards only appear once
+// the grounded `done` frame lands — never off partial prose.
 
 // Starter prompts, taken from the SRS's own worked examples (Appendix 8.1).
 // These are UI copy, not data — they fill the composer, they don't fake a
@@ -60,17 +61,17 @@ function ActionButton({ action }: { action: AssistantAction }) {
         // routing to the detail page keeps one implementation of "contact"
         // rather than a second copy of the tel:/wa.me logic here.
         return navigate(`${ROUTES.food}/${action.slug}`);
-      case 'SAVE_FAVORITE': {
-        if (!favoritesApi.isSupported(action.favoriteType)) {
-          setSaveError('Saving campus locations needs a backend change.');
-          return;
-        }
+      case 'SAVE_FAVORITE':
         favoritesApi.addFavorite$(action.favoriteType, action.itemId).subscribe({
           next: () => setSaved(true),
-          error: () => setSaveError("Couldn't save that."),
+          // A 409 means it was already saved, which is the state the user
+          // asked for — reporting it as a failure would be misleading.
+          error: (err: unknown) =>
+            err instanceof ApiError && err.code === 409
+              ? setSaved(true)
+              : setSaveError("Couldn't save that."),
         });
         return;
-      }
     }
   }
 
@@ -127,7 +128,7 @@ function ResultGroup({ group }: { group: AssistantResults }) {
 }
 
 function Bubble({ message }: { message: AssistantMessage }) {
-  const isUser = message.role === 'user';
+  const isUser = message.role === 'USER';
   return (
     <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
       <div className={isUser ? 'max-w-[85%]' : 'w-full'}>
@@ -159,7 +160,10 @@ function Bubble({ message }: { message: AssistantMessage }) {
 }
 
 export function AssistantPanel() {
-  const { open, messages, sending, error, unavailable, closePanel, send, clear } = useAssistant();
+  const { open, messages, sending, error, closePanel, send, clear } = useAssistant();
+  // Once the first delta lands the reply bubble itself is the progress
+  // indicator, so the placeholder only covers the wait before any text.
+  const awaitingFirstToken = sending && messages.at(-1)?.role === 'USER';
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -236,7 +240,7 @@ export function AssistantPanel() {
         </header>
 
         <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-          {messages.length === 0 && !unavailable && (
+          {messages.length === 0 && (
             <div className="pt-6 text-center">
               <Bot className="mx-auto size-10 text-neutral-300 dark:text-neutral-700" />
               <p className="mt-3 text-sm text-neutral-500 dark:text-neutral-400">
@@ -265,10 +269,10 @@ export function AssistantPanel() {
             <Bubble key={message.id} message={message} />
           ))}
 
-          {/* NFR-3 wants 3-5s, so this is a short wait rather than the
-              minute-long one that needs wording (UI_CONVENTIONS §5). Shaped
-              like an assistant bubble so the reply lands in place. */}
-          {sending && (
+          {/* Shaped like an assistant bubble so the streamed reply lands in
+              place. The model takes ~9-16s to its first token, which is why
+              this exists at all rather than the reply simply appearing. */}
+          {awaitingFirstToken && (
             <SkeletonRegion label="Assistant is replying" className="flex justify-start">
               <Skeleton className="h-16 w-3/4 rounded-2xl" />
             </SkeletonRegion>
@@ -278,22 +282,6 @@ export function AssistantPanel() {
             <p className="rounded-xl bg-danger-500/10 px-4 py-2.5 text-sm text-danger-500">
               {error}
             </p>
-          )}
-
-          {/* The honest state while /assistant/chat doesn't exist. Stated
-              once, with no Retry — retrying a missing endpoint is theatre.
-              See docs/API_REQUIREMENTS.md §C. */}
-          {unavailable && (
-            <div className="rounded-card border border-dashed border-neutral-300 px-4 py-6 text-center dark:border-neutral-700">
-              <Bot className="mx-auto size-8 text-neutral-300 dark:text-neutral-700" />
-              <p className="mt-3 text-sm font-medium text-ink-900 dark:text-white">
-                The assistant isn’t connected yet
-              </p>
-              <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                The chat endpoint hasn’t been built on the backend. Everything else in CampusPal
-                works — Explore and Food are live.
-              </p>
-            </div>
           )}
 
           <div ref={endRef} />
