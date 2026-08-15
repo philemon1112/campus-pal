@@ -5,6 +5,7 @@ import {
   locationsApi,
   LOCATION_CATEGORIES,
   LOCATION_CATEGORY_LABELS,
+  MAX_PAGE_LIMIT,
   type CampusLocation,
   type LocationCategory,
 } from '@/lib/api';
@@ -19,11 +20,13 @@ import { Skeleton, SkeletonLine, SkeletonRegion } from '@/components/ui/Skeleton
 // every Directions hand-off use, so a location saved without them is
 // invisible on the map and can't be navigated to. The form requires them.
 //
-// The endpoints behind this screen don't exist yet (API_REQUIREMENTS.md §A),
-// so the list region shows an honest notice; the form is still real and will
-// work unchanged the moment POST/PATCH/DELETE /locations land.
+// The API caps `limit` at MAX_PAGE_LIMIT and 400s above it, so this asks for
+// one full page rather than "everything". At campus scale that is the whole
+// catalogue; past 100 locations this screen needs real pagination.
 export function AdminLocationsPage() {
-  const { data, status, retry } = useApiResource(() => locationsApi.listLocations$({ limit: 200 }));
+  const { data, status, retry } = useApiResource(() =>
+    locationsApi.listLocations$({ limit: MAX_PAGE_LIMIT }),
+  );
   const locations = data?.results ?? [];
 
   const [editing, setEditing] = useState<CampusLocation | null>(null);
@@ -90,21 +93,14 @@ export function AdminLocationsPage() {
         )}
 
         {status === 'error' && (
-          <div className="rounded-card border border-neutral-100 bg-neutral-50 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-sm font-medium text-ink-900 dark:text-white">
-              The locations endpoint isn’t built yet
-            </p>
-            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-              <code className="font-mono text-xs">GET /locations</code> returns nothing, so there is
-              no catalogue to list. The form above already sends the right payload — see
-              docs/API_REQUIREMENTS.md §A.
-            </p>
+          <div className="flex items-center justify-between gap-3 rounded-card border border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+            <span>Couldn’t load the location catalogue.</span>
             <button
               type="button"
               onClick={retry}
-              className="mt-3 flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-500"
+              className="flex shrink-0 items-center gap-1 font-medium text-brand-600 dark:text-brand-500"
             >
-              <RefreshCw className="size-4" /> Try again
+              <RefreshCw className="size-4" /> Retry
             </button>
           </div>
         )}
@@ -213,6 +209,14 @@ export function AdminLocationsPage() {
   );
 }
 
+// Kebab-case, matching what POST /locations validates against.
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function LocationForm({
   location,
   onSaved,
@@ -223,6 +227,10 @@ function LocationForm({
   onCancel: () => void;
 }) {
   const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  // Once the slug has been edited by hand, stop deriving it from the name —
+  // otherwise typing in Name would silently overwrite a deliberate choice.
+  const [slugEdited, setSlugEdited] = useState(false);
   const [category, setCategory] = useState<LocationCategory>('LECTURE_HALL');
   const [description, setDescription] = useState('');
   const [buildingNotes, setBuildingNotes] = useState('');
@@ -236,6 +244,8 @@ function LocationForm({
   // fields have to re-seed when the selected location changes.
   useEffect(() => {
     setName(location?.name ?? '');
+    setSlug(location?.slug ?? '');
+    setSlugEdited(false);
     setCategory(location?.category ?? 'LECTURE_HALL');
     setDescription(location?.description ?? '');
     setBuildingNotes(location?.buildingNotes ?? '');
@@ -269,9 +279,12 @@ function LocationForm({
     };
 
     setSaving(true);
+    // The slug is the location's public URL, so it is only ever set at
+    // creation — an edit leaves it out of the payload rather than risking a
+    // silent rename that breaks every link already shared.
     const request$ = location
       ? locationsApi.updateLocation$(location.id, payload)
-      : locationsApi.createLocation$(payload);
+      : locationsApi.createLocation$({ ...payload, slug: slug.trim() });
 
     request$.subscribe({
       next: onSaved,
@@ -295,10 +308,43 @@ function LocationForm({
       <TextField
         label="Name"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => {
+          setName(e.target.value);
+          if (!location && !slugEdited) setSlug(slugify(e.target.value));
+        }}
         placeholder="Balme Library"
         required
       />
+
+      {/* The API requires a slug on create (a duplicate is a 409) and it
+          becomes the public URL, so it's editable here rather than hidden —
+          but it's derived from the name until an admin overrides it. */}
+      {location ? (
+        <div className="mb-4">
+          <span className="mb-1.5 block text-sm font-medium text-ink-900 dark:text-white">
+            URL slug
+          </span>
+          <p className="rounded-xl bg-neutral-100 px-4 py-3 font-mono text-sm text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+            {location.slug}
+          </p>
+          <p className="mt-1 text-xs text-neutral-400">
+            Fixed once created — changing it would break links already shared.
+          </p>
+        </div>
+      ) : (
+        <TextField
+          label="URL slug"
+          value={slug}
+          onChange={(e) => {
+            setSlugEdited(true);
+            setSlug(e.target.value);
+          }}
+          placeholder="balme-library"
+          pattern="[a-z0-9]+(-[a-z0-9]+)*"
+          title="Lower-case words separated by single hyphens"
+          required
+        />
+      )}
 
       <div className="mb-4">
         <label

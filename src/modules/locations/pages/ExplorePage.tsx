@@ -22,12 +22,10 @@ const MapView = lazy(() =>
 
 // Campus Explorer — SRS 3.1 (FR-1.1, 1.2, 1.4, 1.6).
 //
-// The category pills here are REAL: they drive `?category=` on the request,
-// which is the whole point of FR-1.1/FR-1.6. Search is server-side and
-// debounced (FR-1.2). Both are only as good as the endpoint behind them —
-// GET /locations does not exist yet (docs/API_REQUIREMENTS.md §A), so this
-// screen currently renders its full shell and an honest "not available yet"
-// notice in the results region. It does not invent buildings.
+// The category pills drive `?category=` on the request, which is the whole
+// point of FR-1.1/FR-1.6. Search is server-side and debounced (FR-1.2), and
+// sharing a position adds `lat`/`lng` so proximity ordering happens on the
+// server rather than being faked here.
 
 type Filter = 'ALL' | LocationCategory;
 
@@ -207,21 +205,14 @@ export function ExplorePage() {
         {/* Errors go inline, in the region that failed — the heading, pills
             and map above stay exactly where they are. */}
         {status === 'error' && (
-          <div className="rounded-card border border-neutral-100 bg-neutral-50 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-sm font-medium text-ink-900 dark:text-white">
-              Campus locations aren’t available yet
-            </p>
-            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-              The <code className="font-mono text-xs">GET /locations</code> endpoint hasn’t been
-              built on the backend. Once it lands, this list, the map pins and the category filters
-              all work as they are — see docs/API_REQUIREMENTS.md §A.
-            </p>
+          <div className="flex items-center justify-between gap-3 rounded-card border border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+            <span>Couldn’t load campus locations.</span>
             <button
               type="button"
               onClick={retry}
-              className="mt-3 flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-500"
+              className="flex shrink-0 items-center gap-1 font-medium text-brand-600 dark:text-brand-500"
             >
-              <RefreshCw className="size-4" /> Try again
+              <RefreshCw className="size-4" /> Retry
             </button>
           </div>
         )}

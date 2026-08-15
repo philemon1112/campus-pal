@@ -39,6 +39,13 @@ interface RequestOptions {
   timeoutMs?: number;
 }
 
+// Exposed for the one call that can't go through rawRequest$: the
+// assistant's SSE stream, which reads the response body incrementally and is
+// not enveloped. See assistant.ts.
+export function apiUrl(path: string, query?: RequestOptions['query']): string {
+  return buildUrl(path, query);
+}
+
 function buildUrl(path: string, query?: RequestOptions['query']): string {
   // new URL() requires an absolute base; fall back to the page's own
   // origin so an empty API_BASE_URL resolves to a same-origin request

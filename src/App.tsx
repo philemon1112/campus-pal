@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { PersonalInfoPage } from '@/pages/PersonalInfoPage';
+import { HelpSupportPage } from '@/pages/HelpSupportPage';
 import { SavedPage } from '@/pages/SavedPage';
 import { ExplorePage } from '@/modules/locations/pages/ExplorePage';
 import { LocationDetailPage } from '@/modules/locations/pages/LocationDetailPage';
@@ -51,8 +52,15 @@ function App() {
         >
           <Route path={ROUTES.saved} element={<SavedPage />} />
           <Route path={ROUTES.assistantHistory} element={<AssistantHistoryPage />} />
-          <Route path={ROUTES.profile} element={<ProfilePage />} />
-          <Route path={ROUTES.profilePersonalInfo} element={<PersonalInfoPage />} />
+          {/* Personal Info is a CHILD of /profile, not a sibling. ProfilePage
+              renders it through <Outlet/>: on desktop beside the settings
+              list, on mobile in place of it. As a sibling route it replaced
+              the whole profile shell, so opening it on desktop dropped the
+              sidebar and the page container along with it. */}
+          <Route path={ROUTES.profile} element={<ProfilePage />}>
+            <Route path="personal-info" element={<PersonalInfoPage />} />
+            <Route path="help" element={<HelpSupportPage />} />
+          </Route>
 
           {/* Role-gated consoles. RoleGate is presentation only — it keeps
               someone out of a screen whose every button would 403 — the API

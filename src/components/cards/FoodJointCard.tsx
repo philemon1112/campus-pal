@@ -44,13 +44,13 @@ export function FoodJointCard({ joint }: { joint: FoodJoint }) {
               ({joint.ratingCount})
             </span>
           )}
-          {/* campusArea is what FR-2.3 actually asks for ("location on
-              campus"); distanceKm is the fallback the API can produce today
-              when the browser shares a position. */}
-          {joint.campusArea ? (
+          {/* The campus landmark is what FR-2.3 actually asks for ("location
+              on campus"); distanceKm is the fallback, and only exists once
+              the browser has shared a position. */}
+          {joint.nearestLocation ? (
             <span className="flex min-w-0 items-center gap-1">
               <MapPin className="size-4 shrink-0" />
-              <span className="truncate">{joint.campusArea}</span>
+              <span className="truncate">Near {joint.nearestLocation.name}</span>
             </span>
           ) : (
             joint.distanceKm !== undefined && (

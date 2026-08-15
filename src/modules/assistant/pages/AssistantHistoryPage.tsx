@@ -9,9 +9,8 @@ import { formatDate } from '@/lib/format';
 // FR-3.8 — recent AI chat sessions, for signed-in users.
 // SRS 6.2 — with an option to clear them.
 //
-// The endpoints don't exist yet (docs/API_REQUIREMENTS.md §C), so the list
-// region reports that plainly. The "Ask CampusPal" button still works: it
-// opens the live panel, which has its own honest unavailable state.
+// Only sessions from signed-in turns appear here: a guest's conversation has
+// no owner server-side, so asking without an account leaves no history.
 export function AssistantHistoryPage() {
   const { openPanel } = useAssistant();
   const { data, status, retry } = useApiResource(() => assistantApi.listSessions$());
@@ -49,20 +48,14 @@ export function AssistantHistoryPage() {
 
       <section className="px-5 pb-4 md:px-0">
         {status === 'error' && (
-          <div className="rounded-card border border-neutral-100 bg-neutral-50 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-900">
-            <p className="text-sm font-medium text-ink-900 dark:text-white">
-              Chat history isn’t available yet
-            </p>
-            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-              <code className="font-mono text-xs">GET /assistant/sessions</code> hasn’t been built
-              on the backend — see docs/API_REQUIREMENTS.md §C.
-            </p>
+          <div className="flex items-center justify-between gap-3 rounded-card border border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+            <span>Couldn’t load your conversations.</span>
             <button
               type="button"
               onClick={retry}
-              className="mt-3 flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-500"
+              className="flex shrink-0 items-center gap-1 font-medium text-brand-600 dark:text-brand-500"
             >
-              <RefreshCw className="size-4" /> Try again
+              <RefreshCw className="size-4" /> Retry
             </button>
           </div>
         )}
@@ -110,16 +103,18 @@ export function AssistantHistoryPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-ink-900 dark:text-white">
-                    {session.title}
+                    {/* `title` is the first message, trimmed — a session
+                        that never got one is still worth listing. */}
+                    {session.title ?? 'Untitled conversation'}
                   </p>
                   <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                    {formatDate(session.createdAt)} · {session.messageCount} messages
+                    {formatDate(session.updatedAt)}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => remove(session.id)}
-                  aria-label={`Delete “${session.title}”`}
+                  aria-label={`Delete “${session.title ?? 'Untitled conversation'}”`}
                   className="flex size-10 shrink-0 items-center justify-center rounded-full text-neutral-400 transition hover:bg-neutral-100 hover:text-danger-500 dark:hover:bg-neutral-800"
                 >
                   <Trash2 className="size-4" />

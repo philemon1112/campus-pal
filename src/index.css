@@ -42,6 +42,11 @@
      enough to be misread as a primary action. 6.6:1 with white text. */
   --color-danger-500: #b91c1c;
   --color-danger-600: #991b1b;
+  /* Dark-ground counterpart. danger-500 manages only 3.0:1 on #0a0a0a —
+     enough for large text, not for a label or icon beside it. This is 7.1:1
+     on the same ground. Use it via `dark:` alongside danger-500, never as a
+     replacement: on white it drops to 3.3:1 and fails. */
+  --color-danger-400: #f87171;
 
   --color-app-bg: #f6f7fb;
 

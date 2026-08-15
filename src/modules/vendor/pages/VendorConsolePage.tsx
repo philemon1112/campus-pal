@@ -1,37 +1,94 @@
-import { useState } from 'react';
-import { ApiError, foodJointsApi, type FoodJointInput } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import {
+  ApiError,
+  foodJointsApi,
+  locationsApi,
+  MAX_PAGE_LIMIT,
+  type CampusLocation,
+  type FoodJoint,
+  type FoodJointInput,
+} from '@/lib/api';
+import { useApiResource } from '@/hooks/useApiResource';
 import { TextField } from '@/components/ui/TextField';
 import { ImageUploadField } from '@/components/ui/ImageUploadField';
 
 // FR-2.7 — a registered vendor creates and updates their own listing.
 //
-// The write endpoints don't exist (POST/PATCH /restaurants — see
-// docs/API_REQUIREMENTS.md §B), and there is no "my listing" read endpoint
-// either, so this screen cannot pre-fill an existing listing. It is
-// therefore a create form only, and it says so, rather than pretending to
-// load a listing it has no way to fetch.
+// `GET /restaurants/mine` is what makes this an edit screen rather than a
+// create-only one: the console reads back the listing the vendor owns and
+// PATCHes it, falling back to POST when they don't have one yet.
+//
+// The campus landmark is a real join (`nearestLocationId`), not free text,
+// so it's a select over the location catalogue — which is also what lets
+// students find this joint by searching for the hall it sits behind.
+const EMPTY_FORM: FoodJointInput = {
+  name: '',
+  cuisine: '',
+  priceTier: 2,
+  description: '',
+  lat: 0,
+  lng: 0,
+  nearestLocationId: '',
+  phone: '',
+  whatsapp: '',
+  email: '',
+  heroImageUrl: '',
+  contactConsent: false,
+};
+
 export function VendorConsolePage() {
-  const [form, setForm] = useState<FoodJointInput>({
-    name: '',
-    cuisine: '',
-    priceTier: 2,
-    lat: 0,
-    lng: 0,
-    description: '',
-    campusArea: '',
-    phone: '',
-    whatsapp: '',
-    heroImageUrl: '',
-    contactConsent: false,
-  });
+  // The listing and the landmark options load together, but a failed
+  // location list must not take the form down — the vendor can still save
+  // without picking a landmark.
+  const { data, status, retry } = useApiResource(() =>
+    forkJoin({
+      mine: foodJointsApi.listMyFoodJoints$(),
+      locations: locationsApi
+        .listLocations$({ limit: MAX_PAGE_LIMIT })
+        .pipe(catchError(() => of({ results: [] as CampusLocation[] }))),
+    }),
+  );
+
+  const existing: FoodJoint | undefined = data?.mine.results[0];
+  const locations = data?.locations.results ?? [];
+
+  const [form, setForm] = useState<FoodJointInput>(EMPTY_FORM);
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  // Seed the form once the vendor's own listing arrives. Keyed on the id so
+  // a refetch of the same listing doesn't discard unsaved edits.
+  const seededId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!existing || seededId.current === existing.id) return;
+    seededId.current = existing.id;
+    setForm({
+      name: existing.name,
+      cuisine: existing.cuisine,
+      priceTier: existing.priceTier,
+      description: existing.description ?? '',
+      lat: existing.lat,
+      lng: existing.lng,
+      nearestLocationId: existing.nearestLocation?.id ?? '',
+      phone: existing.phone ?? '',
+      whatsapp: existing.whatsapp ?? '',
+      email: existing.email ?? '',
+      heroImageUrl: existing.heroImageUrl ?? '',
+      contactConsent: existing.contactConsent,
+    });
+    setLat(String(existing.lat));
+    setLng(String(existing.lng));
+  }, [existing]);
+
   function set<K extends keyof FoodJointInput>(key: K, value: FoodJointInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setSaved(false);
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -49,25 +106,40 @@ export function VendorConsolePage() {
       return setError('Tick the consent box to publish your contact details.');
     }
 
+    // The API rejects unknown body fields with a 400, and empty strings are
+    // not the same as "not set" — so optional fields are dropped rather than
+    // sent blank.
+    const payload: FoodJointInput = {
+      name: form.name,
+      cuisine: form.cuisine,
+      priceTier: form.priceTier,
+      description: form.description,
+      lat: latValue,
+      lng: lngValue,
+      contactConsent: form.contactConsent,
+      nearestLocationId: form.nearestLocationId || undefined,
+      phone: form.phone || undefined,
+      whatsapp: form.whatsapp || undefined,
+      email: form.email || undefined,
+      heroImageUrl: form.heroImageUrl || undefined,
+    };
+
     setSaving(true);
-    foodJointsApi
-      .createFoodJoint$({ ...form, lat: latValue, lng: lngValue })
-      .subscribe({
-        next: () => {
-          setSaved(true);
-          setSaving(false);
-        },
-        error: (err: unknown) => {
-          setError(
-            err instanceof ApiError && err.code === 404
-              ? 'Vendor listings aren’t built on the backend yet (POST /restaurants).'
-              : err instanceof ApiError
-                ? err.message
-                : 'Could not save the listing.',
-          );
-          setSaving(false);
-        },
-      });
+    const request$ = existing
+      ? foodJointsApi.updateFoodJoint$(existing.id, payload)
+      : foodJointsApi.createFoodJoint$(payload);
+
+    request$.subscribe({
+      next: () => {
+        setSaved(true);
+        setSaving(false);
+        retry();
+      },
+      error: (err: unknown) => {
+        setError(err instanceof ApiError ? err.message : 'Could not save the listing.');
+        setSaving(false);
+      },
+    });
   }
 
   return (
@@ -82,10 +154,24 @@ export function VendorConsolePage() {
       </header>
 
       <div className="px-5 pb-6 md:px-0">
-        <p className="mb-4 rounded-card border border-dashed border-neutral-300 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
-          There’s no endpoint to read back an existing listing yet, so this form always creates a
-          new one and can’t show what you already have. See docs/API_REQUIREMENTS.md §B.
-        </p>
+        {status === 'error' && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-card border border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400 md:max-w-xl">
+            <span>Couldn’t load your listing.</span>
+            <button
+              type="button"
+              onClick={retry}
+              className="flex shrink-0 items-center gap-1 font-medium text-brand-600 dark:text-brand-500"
+            >
+              <RefreshCw className="size-4" /> Retry
+            </button>
+          </div>
+        )}
+
+        {status === 'ready' && !existing && (
+          <p className="mb-4 rounded-card border border-dashed border-neutral-300 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400 md:max-w-xl">
+            You don’t have a listing yet. Fill this in and it goes live on the Food tab.
+          </p>
+        )}
 
         <form
           onSubmit={handleSubmit}
@@ -127,12 +213,31 @@ export function VendorConsolePage() {
             </div>
           </div>
 
-          <TextField
-            label="Where on campus"
-            value={form.campusArea ?? ''}
-            onChange={(e) => set('campusArea', e.target.value)}
-            placeholder="Behind Commonwealth Hall"
-          />
+          {/* FR-2.2/FR-2.3 — the landmark students will search by. */}
+          <div className="mb-4">
+            <label
+              htmlFor="vendor-landmark"
+              className="mb-1.5 block text-sm font-medium text-ink-900 dark:text-white"
+            >
+              Nearest campus landmark
+            </label>
+            <select
+              id="vendor-landmark"
+              value={form.nearestLocationId ?? ''}
+              onChange={(e) => set('nearestLocationId', e.target.value)}
+              className="w-full rounded-xl bg-neutral-100 px-4 py-3 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-neutral-800 dark:text-white"
+            >
+              <option value="">No landmark</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-neutral-400">
+              Students searching for this landmark will find your joint.
+            </p>
+          </div>
 
           <div className="mb-4">
             <label
@@ -143,9 +248,10 @@ export function VendorConsolePage() {
             </label>
             <textarea
               id="vendor-description"
-              value={form.description ?? ''}
+              value={form.description}
               onChange={(e) => set('description', e.target.value)}
               rows={3}
+              required
               className="w-full rounded-xl bg-neutral-100 px-4 py-3 text-sm text-ink-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-neutral-800 dark:text-white"
             />
           </div>
@@ -193,11 +299,12 @@ export function VendorConsolePage() {
             onChange={(url) => set('heroImageUrl', url)}
           />
 
-          {/* SRS §7 — legal/compliance. */}
+          {/* SRS §7 — legal/compliance. Untick it and the API stops sending
+              the numbers to anyone, on every screen. */}
           <label className="mb-4 flex items-start gap-2 text-sm text-neutral-600 dark:text-neutral-300">
             <input
               type="checkbox"
-              checked={form.contactConsent ?? false}
+              checked={form.contactConsent}
               onChange={(e) => set('contactConsent', e.target.checked)}
               className="mt-0.5 size-4 accent-brand-600"
             />
@@ -206,7 +313,7 @@ export function VendorConsolePage() {
 
           {error && <p className="mb-3 text-sm text-danger-500">{error}</p>}
           {saved && (
-            <p className="mb-3 text-sm text-brand-600 dark:text-brand-500">Listing submitted.</p>
+            <p className="mb-3 text-sm text-brand-600 dark:text-brand-500">Listing saved.</p>
           )}
 
           <button
@@ -214,7 +321,7 @@ export function VendorConsolePage() {
             disabled={saving}
             className="rounded-full bg-brand-600 px-6 py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save listing'}
+            {saving ? 'Saving…' : existing ? 'Save changes' : 'Create listing'}
           </button>
         </form>
       </div>

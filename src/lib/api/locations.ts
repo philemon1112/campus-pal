@@ -10,16 +10,14 @@ import type {
 
 // Campus Explorer (SRS 3.1, FR-1.1 to FR-1.8).
 //
-// ⚠️ NONE of these endpoints exist on the backend yet. They are specced in
-// docs/API_REQUIREMENTS.md §A and written here so the screens are built
-// against the real contract rather than a placeholder that has to be
-// rewritten later. Every call currently 404s, which the pages surface as an
-// honest "campus locations aren't available yet" state — they do not
-// substitute invented data.
+// A separate resource from the tourism API's /destinations, which is
+// region-shaped, has no category (so FR-1.1 and FR-1.6 would be impossible)
+// and carries a single heroImageUrl rather than photos[]. Don't conflate
+// them.
 //
-// The tourism API's /destinations is deliberately NOT reused: it is
-// region/country-shaped, has no category (so FR-1.1 and FR-1.6 are
-// impossible), and carries a single heroImageUrl rather than photos[].
+// Sending lat/lng populates `distanceKm` and sorts nearest-first, which is
+// what makes "Near me" a server-side sort. `radiusKm` filters BEFORE paging,
+// so `total` is the count within the radius, not the whole table.
 
 // Reads are public — FR-4.1 lets anyone browse without an account.
 export function listLocations$(query: LocationsQuery = {}): Observable<ApiPage<CampusLocation>> {
@@ -33,6 +31,9 @@ export function getLocation$(slug: string): Observable<CampusLocation> {
 // --- Admin writes (FR-1.8) ---
 // Detail reads go by slug, writes by id — the same split the rest of this
 // API uses (/restaurants/:slug vs /restaurants/:id/menu).
+//
+// Unlike restaurants, the caller supplies the slug on create; a duplicate is
+// a 409.
 
 export function createLocation$(input: CreateLocationInput): Observable<CampusLocation> {
   return apiRequest$<CampusLocation>('/locations', { method: 'POST', body: input });

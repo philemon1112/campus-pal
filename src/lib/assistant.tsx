@@ -14,8 +14,9 @@ import { AssistantContext } from '@/hooks/useAssistant';
 // The context and hook are in src/hooks/useAssistant.ts so this file
 // exports only a component (Fast Refresh requirement).
 
-// A local id for optimistic user messages. The server owns ids for anything
-// it returns; this only has to be unique within one transcript.
+// A local id for optimistic user messages and for the streaming reply. The
+// server owns ids for anything it returns; this only has to be unique
+// within one transcript.
 let localId = 0;
 function nextLocalId(): string {
   localId += 1;
@@ -27,7 +28,6 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
 
   // FR-3.7 — the server keys conversation context off this. Held in a ref
   // rather than state because nothing renders it and a change must not
@@ -44,52 +44,81 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     subscription.current?.unsubscribe();
     setError(null);
     setSending(true);
+
+    // The assistant's reply is streamed into this one message, which is
+    // appended empty and then rewritten in place as deltas arrive.
+    const replyId = nextLocalId();
     setMessages((prev) => [
       ...prev,
       {
         id: nextLocalId(),
-        role: 'user',
+        role: 'USER',
         content: body,
         createdAt: new Date().toISOString(),
       },
     ]);
 
-    subscription.current = assistantApi
-      .sendMessage$({ sessionId: sessionId.current, message: body })
-      .subscribe({
-        next: (reply) => {
-          sessionId.current = reply.sessionId;
-          setMessages((prev) => [
+    function upsertReply(patch: Partial<AssistantMessage>) {
+      setMessages((prev) => {
+        const index = prev.findIndex((message) => message.id === replyId);
+        if (index === -1) {
+          return [
             ...prev,
             {
-              id: nextLocalId(),
-              role: 'assistant',
-              content: reply.reply,
+              id: replyId,
+              role: 'ASSISTANT',
+              content: '',
               createdAt: new Date().toISOString(),
-              actions: reply.actions,
-              results: reply.results,
+              ...patch,
             },
-          ]);
-          setSending(false);
-        },
-        error: (err: unknown) => {
-          setSending(false);
-          // A 404/501 is categorically different from a transient failure:
-          // it means the endpoint isn't built, so retrying is pointless and
-          // the panel should say so once instead of offering Retry forever.
-          if (err instanceof ApiError && (err.code === 404 || err.code === 501)) {
-            setUnavailable(true);
-            return;
-          }
-          setError(
-            err instanceof ApiError && err.code === 408
-              ? 'That took too long. Try asking again.'
-              : err instanceof ApiError
-                ? err.message
-                : "Couldn't reach the assistant.",
-          );
-        },
+          ];
+        }
+        const next = [...prev];
+        next[index] = { ...next[index], ...patch };
+        return next;
       });
+    }
+
+    // NFR-3 wants a first response in 3-5s and the model takes 9-16s to
+    // first token, so the panel streams: prose appears as it is generated
+    // instead of after the whole turn. Only the `done` frame is grounded,
+    // so actions and result cards are written from it alone — never from
+    // streamed text that may still be in flight.
+    subscription.current = assistantApi.streamMessage$({
+      sessionId: sessionId.current,
+      message: body,
+    }).subscribe({
+      next: (event) => {
+        if (event.kind === 'delta') {
+          // Each delta carries the whole reply so far, so this replaces
+          // rather than appends.
+          upsertReply({ content: event.reply });
+          return;
+        }
+        sessionId.current = event.reply.sessionId;
+        upsertReply({
+          content: event.reply.reply,
+          actions: event.reply.actions,
+          results: event.reply.results,
+        });
+      },
+      error: (err: unknown) => {
+        setSending(false);
+        // Drop the empty placeholder so a failed turn doesn't leave a blank
+        // bubble above the error.
+        setMessages((prev) =>
+          prev.filter((message) => message.id !== replyId || message.content !== ''),
+        );
+        setError(
+          err instanceof ApiError && err.code === 408
+            ? 'That took too long. Try asking again.'
+            : err instanceof ApiError
+              ? err.message
+              : "Couldn't reach the assistant.",
+        );
+      },
+      complete: () => setSending(false),
+    });
   }, []);
 
   const clear = useCallback(() => {
@@ -104,8 +133,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const closePanel = useCallback(() => setOpen(false), []);
 
   const value = useMemo(
-    () => ({ open, messages, sending, error, unavailable, openPanel, closePanel, send, clear }),
-    [open, messages, sending, error, unavailable, openPanel, closePanel, send, clear],
+    () => ({ open, messages, sending, error, openPanel, closePanel, send, clear }),
+    [open, messages, sending, error, openPanel, closePanel, send, clear],
   );
 
   return <AssistantContext.Provider value={value}>{children}</AssistantContext.Provider>;

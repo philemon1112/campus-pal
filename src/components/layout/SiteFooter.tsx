@@ -26,6 +26,7 @@ const columns: { heading: string; links: { label: string; to: string }[] }[] = [
     links: [
       { label: 'Profile', to: ROUTES.profile },
       { label: 'Personal info', to: ROUTES.profilePersonalInfo },
+      { label: 'Help & emergency', to: ROUTES.profileHelp },
       { label: 'Log in', to: ROUTES.auth.login },
       { label: 'Create account', to: ROUTES.auth.register },
     ],

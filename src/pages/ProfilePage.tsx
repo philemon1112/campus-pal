@@ -19,10 +19,10 @@ import { PersonalInfoPage } from '@/pages/PersonalInfoPage';
 
 // Account surface (SRS FR-4.2/4.3).
 //
-// Every row that links somewhere links to a page that exists and works.
-// "Help & Support" is the one inert row: SRS 2.6 asks for an in-app help/FAQ
-// section, and there is no content or endpoint for one yet, so it renders
-// dimmed rather than navigating to an empty page.
+// Every row links to a page that exists and works. The inert-row branch
+// below is kept for rows with no `to` — there are none today, since Help &
+// Support became a real page (emergency contacts and nearby facilities;
+// SRS 2.6's FAQ half is still unwritten and says so there).
 interface MenuRow {
   label: string;
   icon: ComponentType<{ className?: string }>;
@@ -36,7 +36,7 @@ const menuRows: MenuRow[] = [
   { label: 'Past Conversations', icon: MessageSquare, to: ROUTES.assistantHistory },
   { label: 'My Food Joint', icon: Store, to: ROUTES.vendor, roles: ['VENDOR'] },
   { label: 'Campus Locations', icon: ShieldCheck, to: ROUTES.adminLocations, roles: ['ADMIN'] },
-  { label: 'Help & Support', icon: HelpCircle },
+  { label: 'Help & Support', icon: HelpCircle, to: ROUTES.profileHelp },
 ];
 
 function LoggedOutPrompt() {
