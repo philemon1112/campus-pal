@@ -13,6 +13,7 @@ export const ROUTES = {
   assistantHistory: '/assistant/history',
   profile: '/profile',
   profilePersonalInfo: '/profile/personal-info',
+  profileHelp: '/profile/help',
   // Role-gated consoles (RoleGate); hidden from the nav for other roles.
   vendor: '/vendor',
   adminLocations: '/admin/locations',

@@ -15,6 +15,8 @@ export type {
 } from './foodJoints';
 export * as favoritesApi from './favorites';
 export * as referenceApi from './reference';
+export * as emergencyApi from './emergency';
+export type { EmergencyContact, EmergencyFacility, FacilityType } from './emergency';
 export * as assistantApi from './assistant';
 export * as uploadsApi from './uploads';
 export { getTokens, clearTokens } from './tokenStore';

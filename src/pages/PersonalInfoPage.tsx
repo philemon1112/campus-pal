@@ -10,6 +10,11 @@ import { ROUTES } from '@/lib/routes';
 // Reached from Profile's "Personal Info" row — the one settings-menu item
 // with real backend support (PATCH /users/me). Email isn't editable: the
 // API has no change-email endpoint.
+//
+// This always renders INSIDE ProfilePage — as its <Outlet/> at
+// /profile/personal-info, or as its default desktop pane at bare /profile.
+// So the page container and padding belong to ProfilePage and this must not
+// add its own, or mobile ends up double-padded.
 export function PersonalInfoPage() {
   // Reads from — and writes back to — the shared auth context, so saving
   // here updates the nav and Profile without a refetch or a reload.
@@ -87,7 +92,7 @@ export function PersonalInfoPage() {
   }
 
   return (
-    <div className="px-5 pt-6 pb-10 md:max-w-lg md:px-0 md:pt-0">
+    <div className="pb-10 md:max-w-lg">
       <div className="mb-6 flex items-center gap-3">
         {/* Only needed on mobile, where this page replaces the settings list
             full-screen. On desktop the list stays visible right alongside
