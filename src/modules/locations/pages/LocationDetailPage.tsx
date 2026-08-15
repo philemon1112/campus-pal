@@ -106,20 +106,14 @@ export function LocationDetailPage() {
       </header>
 
       {failed && (
-        <div className="mx-5 mt-4 rounded-card border border-neutral-100 bg-neutral-50 px-4 py-4 dark:border-neutral-800 dark:bg-neutral-900 md:mx-0">
-          <p className="text-sm font-medium text-ink-900 dark:text-white">
-            This location isn’t available yet
-          </p>
-          <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-            <code className="font-mono text-xs">GET /locations/:slug</code> hasn’t been built on the
-            backend — see docs/API_REQUIREMENTS.md §A.
-          </p>
+        <div className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-card border border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400 md:mx-0">
+          <span>Couldn’t load this location.</span>
           <button
             type="button"
             onClick={retry}
-            className="mt-3 flex items-center gap-1 text-sm font-medium text-brand-600 dark:text-brand-500"
+            className="flex shrink-0 items-center gap-1 font-medium text-brand-600 dark:text-brand-500"
           >
-            <RefreshCw className="size-4" /> Try again
+            <RefreshCw className="size-4" /> Retry
           </button>
         </div>
       )}
