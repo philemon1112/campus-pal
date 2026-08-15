@@ -14,6 +14,7 @@ export type {
   FoodJointInput,
 } from './foodJoints';
 export * as favoritesApi from './favorites';
+export * as referenceApi from './reference';
 export * as assistantApi from './assistant';
 export * as uploadsApi from './uploads';
 export { getTokens, clearTokens } from './tokenStore';

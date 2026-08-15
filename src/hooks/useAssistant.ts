@@ -13,13 +13,11 @@ import type { AssistantMessage } from '@/lib/api';
 export interface AssistantState {
   open: boolean;
   messages: AssistantMessage[];
+  // True from the moment a message is sent until the stream completes —
+  // streamed prose lands in the transcript while this is still true.
   sending: boolean;
   // Inline error for the last send. Never blanks the transcript.
   error: string | null;
-  // True once the backend has told us the assistant endpoint isn't there
-  // (404/501). Drives an honest "not connected yet" panel rather than a
-  // retry loop against something that doesn't exist.
-  unavailable: boolean;
   openPanel: () => void;
   closePanel: () => void;
   send: (message: string) => void;

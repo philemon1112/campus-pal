@@ -5,25 +5,18 @@ import type { ApiPage, Favorite, FavoriteType } from './types';
 
 // Saved locations and food joints (SRS FR-1.7).
 //
-// The endpoints themselves are live. The gap is the `type` enum: the backend
-// still uses the tourism app's `TOUR | STAY | RESTAURANT | DESTINATION`.
-// So:
-//   - FOOD_JOINT works today, sent over the wire as RESTAURANT;
-//   - LOCATION has no server-side member, so saving a campus location will
-//     400 until the backend adds it (docs/API_REQUIREMENTS.md §D).
+// The wire enum is shared with the tourism app
+// (TOUR|STAY|RESTAURANT|DESTINATION|LOCATION). CampusPal uses two members:
+// LOCATION as-is, and RESTAURANT under the app's own name, FOOD_JOINT. That
+// rename is the only reason this mapping exists — both types work.
 //
-// `isSupported()` lets a screen render the Save control and disable it
-// honestly, rather than either hiding the feature or firing a call that can
-// only fail.
+// `item` is snapshotted server-side at save time, so /saved renders in one
+// call with no per-item lookups.
 
 const WIRE_TYPE: Record<FavoriteType, string> = {
   FOOD_JOINT: 'RESTAURANT',
   LOCATION: 'LOCATION',
 };
-
-export function isSupported(type: FavoriteType): boolean {
-  return type === 'FOOD_JOINT';
-}
 
 type WireFavorite = Omit<Favorite, 'type'> & { type: string };
 
@@ -37,6 +30,8 @@ export function listFavorites$(type?: FavoriteType): Observable<ApiPage<Favorite
   }).pipe(map((page) => ({ ...page, results: page.results.map(fromWire) })));
 }
 
+// A duplicate save is a 409; callers treat that as "already saved" rather
+// than as a failure.
 export function addFavorite$(type: FavoriteType, itemId: string): Observable<Favorite> {
   return apiRequest$<WireFavorite>('/favorites', {
     method: 'POST',
