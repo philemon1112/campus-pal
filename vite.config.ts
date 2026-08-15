@@ -1,14 +1,55 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'node:fs'
 import path from 'node:path'
+import { createRequire } from 'node:module'
+
+const API_TARGET = 'https://tms-api-m7yf.onrender.com'
+
+// MapLibre resolves its Web Worker at RUNTIME, not at build time:
+//
+//   const name = url.endsWith('-dev.mjs') ? 'maplibre-gl-worker-dev.mjs'
+//                                         : 'maplibre-gl-worker.mjs'
+//   return new URL(`./${name}`, import.meta.url).href
+//
+// The interpolated name defeats static analysis, so no bundler can see the
+// dependency and the worker is never emitted. The built chunk then asks for
+// /assets/maplibre-gl-worker.mjs, gets a 404, and the map fails in its most
+// misleading way: style, sprites and controls all load, so the frame looks
+// alive while fetching zero vector tiles.
+//
+// Copying the prebuilt worker (and the shared chunk it imports) next to the
+// bundle is what makes the runtime URL resolve. Build-only — dev is served
+// from node_modules and is handled by optimizeDeps.exclude below.
+function maplibreWorker(): Plugin {
+  const require = createRequire(import.meta.url)
+  const files = ['maplibre-gl-worker.mjs', 'maplibre-gl-shared.mjs']
+
+  return {
+    name: 'campuspal:maplibre-worker',
+    apply: 'build',
+    generateBundle() {
+      const dist = path.dirname(require.resolve('maplibre-gl/dist/maplibre-gl.mjs'))
+      for (const file of files) {
+        this.emitFile({
+          type: 'asset',
+          // Not hashed: the runtime URL above is built from this exact name.
+          fileName: `assets/${file}`,
+          source: fs.readFileSync(path.join(dist, file), 'utf8'),
+        })
+      }
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    maplibreWorker(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'icon-maskable-src.svg'],
@@ -61,18 +102,22 @@ export default defineConfig({
     // as a normal asset.
     exclude: ['maplibre-gl'],
   },
+  // The API sends no CORS headers, so the browser can't call it directly
+  // from any origin. Every environment proxies `/api` server-to-server
+  // instead, and the client asks its own origin (src/lib/api/client.ts):
+  // this for dev and preview, vercel.json `rewrites` in production. Keep
+  // the three in step — a change here that isn't mirrored in vercel.json
+  // works locally and 404s on the deployment.
   server: {
-    // The live API (see .env.example) sends no CORS headers, so the
-    // browser can't call it directly in dev. Proxying server-to-server
-    // here sidesteps that for local development only — it does NOT fix
-    // the underlying issue for a production build, which needs either
-    // CORS on the backend or a same-origin reverse proxy in front of
-    // both apps. See docs/API_REQUIREMENTS.md §D.
     proxy: {
-      '/api': {
-        target: 'https://tms-api-m7yf.onrender.com',
-        changeOrigin: true,
-      },
+      '/api': { target: API_TARGET, changeOrigin: true },
+    },
+  },
+  // `vite preview` serves the real production bundle, so this is where a
+  // deployment problem can be reproduced locally before pushing.
+  preview: {
+    proxy: {
+      '/api': { target: API_TARGET, changeOrigin: true },
     },
   },
 })
