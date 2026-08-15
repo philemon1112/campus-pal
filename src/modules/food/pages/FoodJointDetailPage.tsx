@@ -98,8 +98,8 @@ function MenuTab({ sections }: { sections: MenuSection[] }) {
   );
 }
 
-// FR-2.8. The endpoints don't exist yet, so a failed list is reported as
-// "not available" rather than as a fault the user could retry away.
+// FR-2.8. One review per diner per joint — the API answers a second attempt
+// with a 409, which is a state to explain rather than an error to retry.
 function ReviewsTab({ jointId }: { jointId: string }) {
   const idRef = useRef(jointId);
   idRef.current = jointId;
@@ -130,8 +130,8 @@ function ReviewsTab({ jointId }: { jointId: string }) {
       },
       error: (err: unknown) => {
         setPostError(
-          err instanceof ApiError && err.code === 404
-            ? 'Reviews aren’t built on the backend yet.'
+          err instanceof ApiError && err.code === 409
+            ? 'You’ve already reviewed this food joint.'
             : err instanceof ApiError
               ? err.message
               : 'Could not post that review.',
@@ -192,12 +192,16 @@ function ReviewsTab({ jointId }: { jointId: string }) {
       )}
 
       {status === 'error' && (
-        <p className="rounded-card border border-dashed border-neutral-200 px-4 py-6 text-center text-sm text-neutral-400 dark:border-neutral-800">
-          Reviews aren’t available yet — <code className="font-mono text-xs">
-            GET /restaurants/:id/reviews
-          </code>{' '}
-          hasn’t been built. See docs/API_REQUIREMENTS.md §B.
-        </p>
+        <div className="flex items-center justify-between gap-3 rounded-card border border-neutral-100 bg-neutral-50 px-4 py-3 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+          <span>Couldn’t load reviews.</span>
+          <button
+            type="button"
+            onClick={retry}
+            className="flex shrink-0 items-center gap-1 font-medium text-brand-600 dark:text-brand-500"
+          >
+            <RefreshCw className="size-4" /> Retry
+          </button>
+        </div>
       )}
 
       {status === 'ready' && reviews.length === 0 && (
@@ -214,7 +218,7 @@ function ReviewsTab({ jointId }: { jointId: string }) {
           >
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-medium text-ink-900 dark:text-white">
-                {review.author?.fullName ?? 'Someone'}
+                {review.author.fullName}
               </span>
               <Stars value={review.rating} size="sm" />
             </div>
@@ -272,16 +276,23 @@ function InfoTab({ joint }: { joint: FoodJoint }) {
         <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-neutral-400">
           <MapPin className="size-4" /> Where
         </h3>
-        <p className="text-sm text-neutral-600 dark:text-neutral-300">
-          {joint.campusArea ?? (
-            <span className="text-neutral-400">
-              No campus area recorded — the API has no <code className="font-mono text-xs">
-                campusArea
-              </code>{' '}
-              field yet (API_REQUIREMENTS.md §B).
-            </span>
-          )}
-        </p>
+        {/* FR-2.3. A real join to a campus location, so it links through to
+            that location's page rather than being loose text. */}
+        {joint.nearestLocation ? (
+          <p className="text-sm text-neutral-600 dark:text-neutral-300">
+            Near{' '}
+            <Link
+              to={`${ROUTES.explore}/${joint.nearestLocation.slug}`}
+              className="font-medium text-brand-600 dark:text-brand-500"
+            >
+              {joint.nearestLocation.name}
+            </Link>
+          </p>
+        ) : (
+          <p className="text-sm text-neutral-400">
+            No campus landmark recorded for this joint.
+          </p>
+        )}
         <Suspense fallback={<Skeleton className="mt-2 h-48 w-full rounded-card" />}>
           <MapView
             center={{ lat: joint.lat, lng: joint.lng }}
@@ -332,9 +343,10 @@ export function FoodJointDetailPage() {
   const joint = data?.joint ?? null;
   const menu = data?.menu ?? [];
 
-  // FR-2.4. `phone`/`whatsapp` are not in the live payload yet, so these
-  // resolve to undefined and the buttons render disabled with a reason
-  // rather than disappearing.
+  // FR-2.4. The API omits `phone`/`whatsapp` entirely unless the vendor
+  // consented (SRS §7), and a vendor may consent while publishing only one
+  // channel — so each button is checked separately and renders disabled,
+  // with the reason, when its channel isn't published.
   const telHref = joint?.phone ? `tel:${joint.phone}` : undefined;
   const whatsappHref = joint?.whatsapp ? `https://wa.me/${joint.whatsapp}` : undefined;
   const contactable = Boolean(telHref || whatsappHref);
@@ -483,14 +495,14 @@ export function FoodJointDetailPage() {
             {joint && <SaveButton type="FOOD_JOINT" itemId={joint.id} className="shrink-0" />}
           </div>
 
-          {/* Honest, not hidden: the SRS's headline food action can't work
-              until the payload carries a number. */}
+          {/* Honest, not hidden. Two genuinely different reasons: the vendor
+              withheld consent (SRS §7), or consented without leaving a
+              number. */}
           {joint && !contactable && (
             <p className="mt-1.5 text-xs text-neutral-400">
-              No contact details published — the API has no{' '}
-              <code className="font-mono">phone</code> or{' '}
-              <code className="font-mono">whatsapp</code> field yet
-              (docs/API_REQUIREMENTS.md §B).
+              {joint.contactConsent
+                ? 'This food joint hasn’t published a phone or WhatsApp number.'
+                : 'This food joint hasn’t agreed to show its contact details publicly.'}
             </p>
           )}
         </div>
