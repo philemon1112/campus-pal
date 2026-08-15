@@ -38,16 +38,17 @@ user — never fetch `/users/me` in a page.
 
 ### Don't fabricate data
 
-**This is the rule most at risk in this codebase**, because two of the three
-SRS features have no backend at all. Campus locations, the AI assistant,
-food-joint reviews and vendor writes are all typed and wired against
-endpoints that return 404 today.
+All three SRS features are backed by real endpoints now, so most of the
+honest-gap states this rule produced have been deleted. The rule itself
+stands: where something genuinely isn't available — a vendor who withheld
+contact consent, a joint with no menu, a location with no photo — render the
+real UI and an **honest empty or inert state that names the reason**. Never
+invent locations, canned assistant replies or placeholder reviews to fill a
+screen. A screen that looks like it works and doesn't is worse than one that
+says so.
 
-Where an endpoint doesn't exist, render the real UI and an **honest empty or
-inert state that names the gap** — "the assistant isn't connected yet", a
-disabled Contact button with the reason underneath. **Never invent mock
-locations, canned assistant replies, or placeholder reviews.** A screen that
-looks like it works and doesn't is worse than one that says so.
+`docs/API_REQUIREMENTS.md` lists what's still outstanding — chiefly CORS on
+the deployed instance, and the tourism rows still in the food listing.
 
 ### Colour roles are not interchangeable
 

@@ -1,16 +1,17 @@
 # CampusPal — API Contract
 
-**For the backend engineer.** This is the exact wire contract the CampusPal
-frontend is already written against: every request it sends, every response
-shape it parses. Implement these and the screens light up with no client
-change.
+The exact wire contract the CampusPal frontend speaks: every request it
+sends, every response shape it parses.
 
-`API_REQUIREMENTS.md` explains *why* each of these is needed (traced to SRS
-requirements). This document is the *what* — copy-pasteable curls and the
-JSON expected back.
+> **Delivered 2026-08-15.** This started as a request to the backend team;
+> all of it now exists. Statuses below were re-verified against the live API
+> on that date, and the notes marked **⚠️ gotcha** are the places where the
+> delivered shape differs from what this document originally asked for —
+> those are the ones that broke the client. What's still outstanding is in
+> [`API_REQUIREMENTS.md`](API_REQUIREMENTS.md).
 
 - **Base URL:** `https://tms-api-m7yf.onrender.com/api/v1`
-- **Legend:** ✅ exists and works · ⚠️ exists but incomplete · ❌ not built
+- **Legend:** ✅ verified live · ⚠️ live with a caveat
 - Every curl below assumes `BASE=https://tms-api-m7yf.onrender.com/api/v1`
   and, where authed, `TOKEN=<accessToken>`.
 
@@ -46,8 +47,20 @@ Any list endpoint takes `?page=&limit=` and returns `data` as:
 }
 ```
 
-`results` must be present and an array even when empty — the client maps over
-it unconditionally.
+`results` is always present and an array, even when empty.
+
+**⚠️ gotcha — `limit` is capped at 100.** Anything higher is a `400`:
+
+```json
+{ "code": 400, "message": "limit must not be greater than 100", "data": null }
+```
+
+Defaults are `page=1`, `limit=20`. This broke the admin location console,
+which was asking for `limit=200`. `MAX_PAGE_LIMIT` in
+`src/lib/api/types.ts` is the client-side constant.
+
+Note also that filters apply **before** paging, so `total` is the count
+within the filter, not the size of the table.
 
 ### 0.3 Auth
 
@@ -90,10 +103,11 @@ Error body uses the same envelope:
 
 ---
 
-## 1. Campus Locations ❌ — the whole module is missing
+## 1. Campus Locations ✅ — delivered
 
-Backs `/explore`, `/explore/:slug` and `/admin/locations`, all three already
-built. This is the largest single unlock in the app.
+Backs `/explore`, `/explore/:slug` and `/admin/locations`. Live with 20 real
+UG Legon records (Akuafo, Legon, Volta, Commonwealth, Balme Library, the
+Great Hall, Night Market…).
 
 ### The `Location` object
 
@@ -180,11 +194,17 @@ the slug is unknown.
 
 ### 1.3 `POST /locations` — ADMIN
 
+**⚠️ gotcha — the caller supplies `slug`.** Unlike restaurants, where the
+server generates one from the name, `POST /locations` requires a kebab-case
+`slug` in the body and answers a duplicate with a `409`. The admin form
+derives one from the name and lets an admin override it.
+
 ```bash
 curl -s -X POST "$BASE/locations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "slug": "great-hall",
     "name": "Great Hall",
     "category": "ADMINISTRATION",
     "description": "Ceremonial hall used for congregation and matriculation.",
@@ -195,8 +215,8 @@ curl -s -X POST "$BASE/locations" \
   }'
 ```
 
-`201` with the created `Location` (server generates `id` and `slug`).
-`409` if the generated slug collides. `403` for a non-admin.
+`201` with the created `Location`. `409` if the slug is taken, `400` if
+`category` isn't one of the six, `401`/`403` for a non-admin.
 
 ### 1.4 `PATCH /locations/:id` — ADMIN
 
@@ -222,20 +242,18 @@ curl -s -X DELETE "$BASE/locations/loc_01HZY3" -H "Authorization: Bearer $TOKEN"
 { "code": 200, "message": "Location deleted", "data": null }
 ```
 
-### 1.6 Seed data
+### 1.6 Seed data ✅
 
-UG Legon needs a real dataset, verified against the official campus map:
-halls of residence (Commonwealth, Legon, Akuafo, Volta, Mensah Sarbah), Balme
-Library, the Registry, the Great Hall, departmental blocks, the sports
-stadium. The schema work is wasted without it.
+Delivered — 20 real UG Legon records. The one thing still missing is
+**photography**: every location carries a single generic Unsplash image, and
+`photos` is an array the detail page is built to gallery.
 
 ---
 
-## 2. Food Joints ✅⚠️ — works; four gaps
+## 2. Food Joints ✅ — delivered, one data caveat
 
-`GET /restaurants`, `/restaurants/:slug` and `/restaurants/:id/menu` are live
-and confirmed returning real data. What follows is the current shape plus the
-fields that are missing.
+All four gaps closed: contacts, campus landmark, reviews and vendor writes.
+The remaining problem is **data, not schema** — see §2.1.
 
 ### The `FoodJoint` object
 
@@ -258,12 +276,13 @@ fields that are missing.
   description?: string;
   openingHours?: { day: number; opens: string; closes: string }[];  // day 0 = Sunday
 
-  // ---- MISSING TODAY — §2.3 and §2.4 ----
-  phone?: string;
+  // The campus landmark this joint sits by — a real join, see §2.4.
+  nearestLocation?: { id: string; slug: string; name: string };
+
+  contactConsent: boolean;   // always present
+  phone?: string;            // present ONLY when contactConsent is true
   whatsapp?: string;
   email?: string;
-  contactConsent: boolean;
-  campusArea?: string;
 }
 ```
 
@@ -278,9 +297,20 @@ than sending `false`.
 curl -s "$BASE/restaurants?q=jollof&cuisine=Ghanaian&priceTier=2&dietary=HALAL&openNow=true&lat=5.6508&lng=-0.1870&limit=30"
 ```
 
-Returns a page of `FoodJoint`. **Data gap:** the four seeded rows are Accra
-city restaurants (Azmera in Airport Residential, etc.). They need replacing
-with real campus joints.
+Also accepts `nearestLocationId` and `nearestLocationSlug` (§2.4), and `?q=`
+matches the landmark's name as well as the joint's — so `?q=Commonwealth`
+finds the joints beside Commonwealth Hall.
+
+**⚠️ Data gap — the listing serves two products.** `GET /restaurants` returns
+**28 rows: 8 campus joints and 20 tourism venues** (Santoku in Airport
+Residential, Chopstix in Kumasi, Oasis Beach Restaurant on the Volta). The
+Food tab requests it unfiltered, so a student browsing for lunch sees mostly
+restaurants hundreds of kilometres away.
+
+There is no campus-scope filter to fix this with: `nearestLocationSlug`
+answers "food near Commonwealth Hall", not "food on campus". **A
+`?campusOnly=true` flag, or separating the datasets, is the ask** —
+`API_REQUIREMENTS.md` §2.
 
 ### 2.2 `GET /restaurants/:slug` ✅ and `GET /restaurants/:id/menu` ✅ — PUBLIC
 
@@ -303,7 +333,8 @@ Menu response — note the nesting, `data.sections`:
           {
             "name": "Jollof with chicken",
             "description": "Served with shito and salad.",
-            "priceMinor": 4500
+            "price": 45,
+            "photoUrl": "https://res.cloudinary.com/.../jollof.jpg"
           }
         ]
       }
@@ -312,48 +343,44 @@ Menu response — note the nesting, `data.sections`:
 }
 ```
 
-**Please send `priceMinor` (integer minor units).** The live API currently
-sends `price: 45` in major units, which the client normalises at the
-boundary — see §7.2.
+**⚠️ gotcha — money is decimal cedis, not minor units.** `price: 45` means
+GHS 45.00, at most two decimal places. This document originally asked for
+integer `priceMinor`; decimal under the shorter name is the settled contract.
+`src/lib/api/money.ts` normalises it at the boundary so the rest of the app
+works in one unit. `photoUrl` per item is delivered too.
 
-Optional, per FR-2.3: add `photoUrl?: string` to a menu item.
+### 2.3 ✅ Contact fields — consent-gated
 
-### 2.3 ❌ Contact fields — **this blocks the headline food feature**
-
-`RestaurantResponseDto` carries **no contact information of any kind**. FR-2.4
-— call or WhatsApp a food joint — is the SRS's flagship food capability, and
-the Contact bar on `/food/:slug` is built and renders **disabled**, with the
-reason shown to the user, because there is nothing to call.
-
-Add to `FoodJoint`:
+FR-2.4 works. **`phone`, `whatsapp` and `email` are omitted from the payload
+entirely — not `null`, not `""` — unless `contactConsent` is true**, on list
+results and detail alike.
 
 ```ts
-phone?: string;          // "+233201234567"
-whatsapp?: string;       // digits only for wa.me links: "233201234567"
+contactConsent: boolean;   // always present
+phone?: string;            // "+233201110006"
+whatsapp?: string;         // digits only for wa.me: "233201110006"
 email?: string;
-contactConsent: boolean;
 ```
 
-`contactConsent` is a legal requirement, not a nicety — SRS §7 says vendor
-contact details are published only with consent. **Suppress `phone` and
-`whatsapp` server-side when it is false**, rather than trusting clients to
-hide them.
+Gate the UI on `contactConsent`, then null-check each channel separately: a
+vendor may consent while publishing only one of the two numbers. Suppression
+is server-side, so revoking consent takes the numbers off every screen with
+no client release. **6 of 28 seeded joints have consented.**
 
-### 2.4 ❌ `campusArea`
+### 2.4 ✅ Campus landmark — a join, not a string
 
-FR-2.2 searches food joints **by location** and FR-2.3 shows a joint's
-**location on campus**. `lat`/`lng` cannot render "behind Commonwealth Hall",
-and neither can `distanceKm`, which only exists once the user shares a
-position.
+Delivered as `nearestLocation` (a `{ id, slug, name }` summary on reads) and
+`nearestLocationId` (on writes) — better than the `campusArea` string this
+document originally asked for, because it links through to the location's own
+page and is filterable:
 
-```ts
-campusArea?: string;          // "Behind Commonwealth Hall"
-// or, better, a real join to §1:
-nearestLocationId?: string;
+```bash
+curl -s "$BASE/restaurants?nearestLocationSlug=commonwealth-hall"
+curl -s "$BASE/restaurants?nearestLocationId=903ce8f8-…"
 ```
 
-The join would also let the assistant answer "food joints near Legon Hall"
-properly instead of by radius guesswork.
+It is also what lets the assistant answer "food joints near Legon Hall"
+properly rather than by radius guesswork.
 
 ### 2.5 ❌ Reviews — blocks FR-2.8
 
@@ -381,6 +408,7 @@ Paged list response:
     "results": [
       {
         "id": "rev_01HZ",
+        "restaurantId": "e4450e70-692e-4019-8a7c-efa22d9217b4",
         "rating": 4,
         "body": "Great waakye, quick service.",
         "createdAt": "2026-08-15T09:30:00.000Z",
@@ -395,15 +423,22 @@ Paged list response:
 }
 ```
 
-`POST` returns `201` with the single created review. `rating` is an integer
-1–5; reject anything else with `400`.
+`POST` returns `201` with the created review. `rating` is an integer 1–5.
+`author` is resolved server-side, so reviews carry a name rather than a bare
+`authorId` for the client to look up.
 
-**Please include `author`.** The tourism API's review payload carries an
-`authorId` and no name, which is why its review list deliberately shows no
-reviewer identity — the alternative would have been inventing one. Don't
-repeat that.
+**⚠️ gotcha — one review per diner per joint.** A second attempt is a `409`:
 
-### 2.6 ❌ Vendor writes — blocks FR-2.7
+```json
+{ "code": 409, "message": "You have already reviewed this restaurant", "data": null }
+```
+
+That is a state to explain ("you've already reviewed this"), not a failure to
+retry. Reviews are **not** purchase-gated — any signed-in diner may leave
+one. An `ADMIN` may remove one (§6.1); the rating aggregate is then recomputed
+from the remaining rows rather than decremented.
+
+### 2.6 ✅ Vendor writes — delivered
 
 ```bash
 # create — owned by the calling vendor
@@ -417,7 +452,7 @@ curl -s -X POST "$BASE/restaurants" \
     "lat": 5.6495,
     "lng": -0.1882,
     "description": "Waakye and stew, served from 7am.",
-    "campusArea": "Bush Canteen",
+    "nearestLocationId": "41dfae7f-b0b8-456a-b3c0-49c7a3a09af0",
     "phone": "+233201234567",
     "whatsapp": "233201234567",
     "heroImageUrl": "https://res.cloudinary.com/.../waakye.jpg",
@@ -432,27 +467,37 @@ curl -s -X PATCH "$BASE/restaurants/rest_01HZ" \
 # replace the whole menu, owner only
 curl -s -X PUT "$BASE/restaurants/rest_01HZ/menu" \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"sections":[{"category":"Mains","items":[{"name":"Waakye","priceMinor":2000}]}]}'
+  -d '{"sections":[{"category":"Mains","items":[{"name":"Waakye","price":20}]}]}'
 
-# read back your own listing
-curl -s "$BASE/restaurants/mine" -H "Authorization: Bearer $TOKEN"
+# read back your own listings (paginated)
+curl -s "$BASE/restaurants/mine?limit=20" -H "Authorization: Bearer $TOKEN"
 ```
 
-`GET /restaurants/mine` matters more than it looks: without it a vendor
-cannot read back their own listing, so `/vendor` can only ever create and
-never edit. The tourism app hit exactly this with tours and worked around it
-by caching the create response in `localStorage`. Please don't make us do
-that again.
+`GET /restaurants/mine` is what makes `/vendor` an edit screen rather than a
+create-only one. It is declared before `/:slug`, so `mine` is never taken as
+a slug.
 
-Non-owner writes return `404`, not `403` (§0.4).
+Notes:
+
+- The **slug is generated server-side** from the name with a short suffix —
+  don't send one (the opposite of locations, §1.3).
+- `PUT /menu` replaces the whole menu; send every section each time.
+- **A non-owner write is a `403`** (`"Not the resource owner"`), not the
+  `404` this document originally specified. `ADMIN` may act on any listing.
+- **⚠️ The API whitelists DTO fields and rejects unknown ones with a `400`**,
+  so don't spread extra client state into these payloads. Empty strings are
+  not "unset" either — omit optional fields rather than sending `""`.
+
+**Not verified end-to-end:** no `VENDOR` test account exists, so these calls
+are wired and type-checked but have never been run against a real session.
 
 ---
 
-## 3. AI Assistant ❌ — the whole module is missing
+## 3. AI Assistant ✅ — delivered, with SSE streaming
 
-The chat panel, its action executor and `/assistant/history` are all built.
-This is the biggest build on the list and it depends on §1 existing, so the
-assistant has real data to ground itself in.
+Live, grounded in the real location and restaurant tables, and it serves
+guests. The client uses the **streaming** endpoint (§3.5) for chat and keeps
+the synchronous POST as a fallback.
 
 ### 3.1 `POST /assistant/chat` — **PUBLIC**
 
@@ -487,7 +532,7 @@ curl -s -X POST "$BASE/assistant/chat" \
 
 ### 3.2 The action union — the most important design decision in the module
 
-`actions` must be a **closed, typed union**, never prose. FR-3.5 requires the
+`actions` is a **closed, typed union**, never prose. FR-3.5 requires the
 assistant to *perform* tasks, not just describe them; the client executes each
 action with a `switch` and cannot safely act on a sentence.
 
@@ -502,35 +547,80 @@ type AssistantAction =
                                   itemId: string; name: string };
 ```
 
-`actions` is always present — send `[]`, never omit it or send `null`.
-`results` is optional; `kind` picks which card component renders the rows, and
-`items` must be full `Location` / `FoodJoint` objects so the same card
-component works in chat and in a list.
+`actions` is always present — `[]` rather than omitted or `null`. `results`
+is optional; `kind` picks which card component renders the rows, and `items`
+are full `Location` / `FoodJoint` objects, so the same card component works
+in chat and in a list.
 
-### 3.3 Five requirements on the implementation
+### 3.3 What the server guarantees
 
-1. **It must accept unauthenticated callers.** SRS 6.1 makes
-   `Chat Session.User ID` nullable and FR-4.1 allows browsing without an
-   account — a fresher's first question comes from a signed-out session.
-   Issue an ephemeral `sessionId` rather than demanding a bearer token. The
-   client sends no `Authorization` header, and attaches one only if a token
-   happens to exist.
-2. **Echo `sessionId` back on every reply.** The client resends it to keep one
-   conversation across navigation (FR-3.7).
-3. **Ground it in real data.** The model may only reference locations and food
-   joints that actually exist; strip anything it invents, exactly as the
-   tourism API's itinerary planner already does with tours. An assistant that
-   confidently directs a fresher to a hall that isn't there is worse than one
-   that says it can't find it.
-4. **Out-of-scope requests need no special case** (FR-3.6). Return a plain
-   message and `actions: []`; the client renders an ordinary bubble.
-5. **NFR-3 wants a first response in 3–5 s. Please expose SSE streaming.**
-   For comparison, the tourism API's itinerary planner is a synchronous POST
-   measured at **~66 s** — unusable for chat. The client currently caps this
-   call at **45 s** and then surfaces a timeout, so a synchronous
-   implementation will work but will not meet the NFR.
+1. **Guests are first-class.** No bearer token returns `200` with a fresh
+   `sessionId`, not a `401`. Guest sessions have no owner, so they never
+   appear in history and can't be deleted. Presenting a session id you don't
+   own is a **`404`**, not a `403` — the response never confirms it exists.
+2. **Every rendered field is server-authoritative.** `name`, and the
+   `lat`/`lng` on `SHOW_DIRECTIONS`, are overwritten from the resolved record
+   before the action is sent, so a model that names a real hall but attaches
+   the wrong coordinates cannot move the map pin. Anything it invents is
+   dropped, so every slug and id in `actions` resolves to a real record.
+3. **`CONTACT_FOOD_JOINT` respects the §2.3 consent gate, per channel.**
+   `channel: 'CALL'` only appears when a phone is published. The model is
+   told which channels exist and is never given the numbers.
+4. **No match means the model isn't called at all** — a fixed "I could not
+   find anything on campus matching that" with `actions: []`, in ~70 ms. That
+   is FR-3.6's out-of-scope answer; render it as an ordinary bubble, not an
+   error.
 
-### 3.4 History — authed (FR-3.8)
+### 3.4 ⚠️ NFR-3 latency is not met
+
+The backend measures **9–16 s to first token** and full turns to ~120 s on
+`openrouter/free`, against the SRS's 3–5 s. Measured from here on
+2026-08-15 it was better — 1.8 s synchronous, ~6 s to first token in the
+app — but it is model-dependent.
+
+Closing the gap needs a faster `AI_OPENROUTE_MODEL` on the server; it's a
+config change, not code. The client streams so the wait is perceived rather
+than blocking, and the non-streaming fallback is capped at 130 s (up from 45
+s, which the documented worst case would have exceeded).
+
+### 3.5 `POST /assistant/chat/stream` — SSE, **PUBLIC**
+
+What the chat panel actually calls. Same body as §3.1.
+
+```bash
+curl -N -X POST "$BASE/assistant/chat/stream" \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Where is Balme Library?"}'
+```
+
+```
+event: delta
+data: {"reply":"Balme"}
+
+event: delta
+data: {"reply":"Balme Library is"}
+
+event: done
+data: {"sessionId":"40a4ad51-…","reply":"Balme Library is …","actions":[…],"results":[…]}
+```
+
+| Event | `data` | Meaning |
+| --- | --- | --- |
+| `delta` | `{ reply }` | The prose **so far** — the whole reply to date, not a fragment |
+| `done` | `ChatReply` | The authoritative payload: `sessionId`, grounded `actions`, `results` |
+| `error` | `{ message }` | The turn failed; the stream then ends |
+
+Three things that bite:
+
+1. **Each `delta` is cumulative.** Replace your draft text; don't append, or
+   you'll render "BalmeBalme LibraryBalme Library is".
+2. **Only `done` is grounded.** Drive buttons and result cards off
+   `done.actions` / `done.results`, never off streamed prose still in flight.
+3. **⚠️ SSE frames are NOT enveloped** — unlike every other route in §0.1,
+   the payload is the frame's own JSON. Errors *before* the stream opens
+   still arrive as a normal envelope.
+
+### 3.6 History — authed (FR-3.8)
 
 ```bash
 curl -s "$BASE/assistant/sessions?limit=50" -H "Authorization: Bearer $TOKEN"
@@ -545,25 +635,32 @@ List (paged, §0.2) of:
   "id": "sess_01HZ",
   "title": "Where is Balme Library?",
   "createdAt": "2026-08-15T09:30:00.000Z",
-  "messageCount": 4
+  "updatedAt": "2026-08-15T09:31:18.429Z"
 }
 ```
 
-Single session:
+**⚠️ gotcha — there is no `messageCount`.** This document asked for one; the
+delivered shape carries `updatedAt` instead, and the list is ordered by last
+activity. `title` is the first message trimmed, and is optional.
+
+Single session — same fields plus `messages`:
 
 ```json
 {
   "id": "sess_01HZ",
+  "title": "Where is Balme Library?",
+  "createdAt": "2026-08-15T09:30:00.000Z",
+  "updatedAt": "2026-08-15T09:30:04.000Z",
   "messages": [
     {
       "id": "msg_1",
-      "role": "user",
+      "role": "USER",
       "content": "Where is Balme Library?",
       "createdAt": "2026-08-15T09:30:00.000Z"
     },
     {
       "id": "msg_2",
-      "role": "assistant",
+      "role": "ASSISTANT",
       "content": "Balme Library is at the top of the University Square...",
       "createdAt": "2026-08-15T09:30:04.000Z",
       "actions": [
@@ -579,7 +676,7 @@ who opt in, and they must be able to clear it.
 
 ---
 
-## 4. Accounts ✅ — one change needed
+## 4. Accounts ✅ — delivered
 
 ### 4.1 Auth endpoints (all working, all PUBLIC)
 
@@ -612,18 +709,25 @@ curl -s -X POST "$BASE/auth/reset-password" -H "Content-Type: application/json" 
 
 `logout`, `forgot-password` and `reset-password` return `"data": null`.
 
-### 4.2 ⚠️ Roles — the enum is the tourism product's
+### 4.2 ✅ Roles — widened, not renamed
 
-| SRS user class | API today | Needed |
-| --- | --- | --- |
-| Student, Staff, Visitor | `TOURIST` | `STUDENT`, `STAFF`, `VISITOR` |
-| Food Vendor | `OPERATOR` (wrong semantics) | `VENDOR` |
-| Administrator | `ADMIN` ✅ | `ADMIN` |
+**⚠️ gotcha — the enum has seven members, not the SRS's five.** `TOURIST` and
+`OPERATOR` were kept because they carry every existing tour booking, so
+`UserRole` is:
 
-Needed: `role: 'STUDENT' | 'STAFF' | 'VISITOR' | 'VENDOR' | 'ADMIN'`, plus the
-`affiliation` field on register (above) so a user can say which they are. The
-frontend already types `UserRole` this way, so today the extra members resolve
-to nothing and **the vendor console is unreachable**.
+```ts
+'STUDENT' | 'STAFF' | 'VISITOR' | 'VENDOR' | 'ADMIN' | 'TOURIST' | 'OPERATOR'
+```
+
+`POST /auth/register` takes an optional **`affiliation`** of `STUDENT`,
+`STAFF` or `VISITOR`, which becomes the account's role. **Omitting it creates
+a `TOURIST`** — so a CampusPal signup that doesn't send one silently lands
+outside every CampusPal role gate. The register screen always sends one.
+
+`VENDOR`, `OPERATOR` and `ADMIN` are not self-selectable; sending one is a
+`400` that spells out the allowed set. Those accounts are provisioned by the
+backend — **and none exist for testing yet**, which is why `/vendor` and
+`/admin/locations` are unverified.
 
 ### 4.3 Profile ✅
 
@@ -668,14 +772,12 @@ curl -s -X POST "$BASE/uploads/image" \
 
 ---
 
-## 5. Favourites ✅ — one missing enum member
+## 5. Favourites ✅ — `LOCATION` delivered
 
-Endpoints work. The `type` enum is still `TOUR | STAY | RESTAURANT |
-DESTINATION`. **CampusPal needs `LOCATION` added.**
-
-`RESTAURANT` is reused as-is for food joints (the client maps the name), so
-saving a food joint works today and saving a campus location `400`s — which
-is why `/saved` currently says so in its empty state.
+The `type` enum is now `TOUR | STAY | RESTAURANT | DESTINATION | LOCATION`.
+CampusPal uses two members: `LOCATION` as-is, and `RESTAURANT` under the
+app's own name `FOOD_JOINT` (mapped in `src/lib/api/favorites.ts`). Both
+work, so `/saved` holds locations and food joints alike.
 
 ```bash
 curl -s "$BASE/favorites?limit=100&type=RESTAURANT" -H "Authorization: Bearer $TOKEN"
@@ -687,43 +789,52 @@ curl -s -X POST "$BASE/favorites" \
 curl -s -X DELETE "$BASE/favorites/fav_01HZ" -H "Authorization: Bearer $TOKEN"
 ```
 
-Each row — `item` is what makes the saved-items list renderable without an
-N+1 fetch, so please keep sending it:
+Each row — `item` is snapshotted at save time, so `/saved` renders in one
+call with no per-item lookups:
 
 ```json
 {
-  "id": "fav_01HZ",
+  "id": "22806b01-3eca-4469-9a5a-608c43184395",
   "type": "LOCATION",
-  "itemId": "loc_01HZY3",
+  "itemId": "ed4c3d35-e529-4236-bbf2-2cdfe5ad8e32",
   "item": {
-    "id": "loc_01HZY3",
-    "slug": "balme-library",
-    "name": "Balme Library",
-    "subtitle": "Administration",
-    "imageUrl": "https://res.cloudinary.com/.../balme-1.jpg"
+    "title": "Akuafo Hall",
+    "slug": "akuafo-hall",
+    "imageUrl": "https://images.unsplash.com/photo-1552566626-52f8b828add9…"
   },
-  "createdAt": "2026-08-15T09:30:00.000Z"
+  "createdAt": "2026-08-15T07:21:32.696Z"
 }
 ```
+
+**⚠️ gotcha — the field is `item.title`, not `item.name`**, and there is no
+`subtitle`. This document asked for `name`/`subtitle`; the delivered shape is
+`{ title, slug?, imageUrl? }`, which rendered blank rows until the client was
+corrected. For a `LOCATION` the snapshot's `imageUrl` is the first entry of
+`photos[]`.
+
+A duplicate save is a `409` and an unknown `itemId` a `404`. The client
+treats `409` as "already saved" — the state the user asked for — rather than
+as a failure.
 
 ---
 
 ## 6. Admin & reference
 
-### 6.1 Moderation ❌ (SRS §7)
+### 6.1 Moderation ✅ (SRS §7)
 
-An administrator must be able to remove inappropriate ratings and feedback.
+An administrator removes inappropriate ratings and feedback; the joint's
+rating aggregate is recomputed from the remaining rows. Wired
+(`deleteReview$`) but no UI calls it yet.
 
 ```bash
 curl -s -X DELETE "$BASE/restaurants/rest_01HZ/reviews/rev_01HZ" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### 6.2 Reference sets ⚠️
+### 6.2 Reference sets ✅
 
-`GET /reference/:set` exists and already serves `cuisines` and `dietary`.
-Adding `location-categories` and `food-categories` would stop the client
-hardcoding them.
+`location-categories` and `food-categories` were added alongside `cuisines`
+and `dietary`.
 
 ```bash
 curl -s "$BASE/reference/location-categories"
@@ -731,35 +842,46 @@ curl -s "$BASE/reference/location-categories"
 
 ```json
 { "code": 200, "message": "OK",
-  "data": [ { "value": "LECTURE_HALL", "label": "Lecture Halls" } ] }
+  "data": [
+    { "code": "LECTURE_HALL", "label": "Lecture Hall" },
+    { "code": "DEPARTMENT",   "label": "Department" }
+  ] }
 ```
+
+**⚠️ gotcha — entries are `{ code, label }`, not `{ value, label }`.**
+`GET /reference` also lists the tourism sets (`cabins`, `airports`,
+`ride-statuses`…), which CampusPal ignores. Wrapped in
+`src/lib/api/reference.ts`; the category pills still use the local labels,
+since the server's ("Lecture Hall") are singular where the UI wants plural.
 
 ---
 
-## 7. Two problems inherited from the tourism API
+## 7. Still outstanding
 
-### 7.1 ❌ CORS is unconfigured — **this blocks production, full stop**
+### 7.1 ❌ CORS is unset on the deployed instance — **blocks production**
 
-There are **zero `Access-Control-Allow-Origin` headers** on any response, on
-any origin. Locally the Vite dev proxy sidesteps it server-to-server; **there
-is no equivalent workaround for a deployed CampusPal.**
+Still true as of 2026-08-15. **Zero `Access-Control-Allow-Origin` headers**
+on any response, on any origin:
 
 ```bash
 curl -si "$BASE/restaurants?limit=1" -H "Origin: https://campuspal.example" | grep -i access-control
-# (currently returns nothing)
+# (returns nothing)
 ```
 
-Needs `Access-Control-Allow-Origin`, `-Allow-Headers: Authorization,
-Content-Type`, `-Allow-Methods: GET,POST,PATCH,PUT,DELETE,OPTIONS`, and a
-`204` on preflight `OPTIONS`.
+This is **not a code change** — `main.ts` already reads `CORS_ORIGINS` and
+calls `enableCors`; the env var is simply unset on the Render service. Set it
+to a comma-separated origin list and redeploy.
 
-### 7.2 ⚠️ Money fields contradict the spec
+Locally the Vite dev proxy sidesteps it server-to-server. **There is no
+equivalent workaround for a deployed CampusPal**, which calls the API from
+the browser.
 
-The API guide documents integer minor units (`priceMinor: 2500`); the running
-API sends major units under a shorter name (`price: 25`). The client
-normalises at the boundary (`src/lib/api/money.ts`), so fixing this needs no
-coordinated release — but the spec and the API should agree. Silent unit
-changes are how you get a 100× billing error.
+### 7.2 ✅ Money — resolved
+
+Settled as **decimal cedis under the short name** (`price: 45` = GHS 45.00,
+max two decimals), not the integer `priceMinor` this document originally
+asked for. `src/lib/api/money.ts` normalises at the boundary so the app works
+in one unit either way.
 
 ---
 
@@ -778,16 +900,17 @@ reservations are wanted later, the backend side is already done.
 
 ---
 
-## 9. Suggested build order
+## 9. What's left
 
-| # | Work | Why first |
-| --- | --- | --- |
-| 1 | §2.3 contact fields | One field group; unblocks FR-2.4, the SRS's headline food feature. The UI is already built and waiting. |
-| 2 | §1 campus locations | The largest single unlock — eight requirements, three finished screens, the app's reason for existing. |
-| 3 | §4.2 roles + §5 `LOCATION` favourite | Small. Unblocks the vendor console and saved locations. |
-| 4 | §3 the assistant | Biggest build, and it needs §1 to ground itself in. |
-| 5 | §2.5 / §2.6 reviews and vendor writes | |
-| 6 | §7.1 CORS | Required before anything ships, whenever that is. |
+Everything in §1–§6 is delivered and integrated. In priority order, what
+still needs doing:
 
-Data reseeding (§1.6 campus locations, §2.1 real campus food joints) runs
-alongside — the schema work is wasted without it.
+| # | Work | Where | Why it matters |
+| --- | --- | --- | --- |
+| 1 | Set `CORS_ORIGINS` on Render | §7.1 | Blocks any deploy. Config, not code. |
+| 2 | A campus scope for `GET /restaurants` | §2.1 | The Food tab is 20/28 tourism venues today. |
+| 3 | Provision `VENDOR` + `ADMIN` test accounts | §4.2 | Two finished consoles can't be exercised without them. |
+| 4 | A faster `AI_OPENROUTE_MODEL` | §3.4 | NFR-3's 3–5 s budget. Config, not code. |
+| 5 | Real campus photography | §1.6 | Every location has one generic stock image. |
+
+Nothing on this list needs a frontend release.
