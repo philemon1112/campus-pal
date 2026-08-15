@@ -4,14 +4,20 @@ import { fromFetch } from 'rxjs/fetch';
 import type { ApiEnvelope, AuthTokens } from './types';
 import { clearTokens, getTokens, setTokens } from './tokenStore';
 
-// The live API sends no CORS headers (see docs/DEVELOPMENT_LOG.md, "CORS
-// blocker"), so in dev we default to a relative URL and let the Vite proxy
-// (vite.config.ts) forward it server-to-server. Production has no such
-// proxy, so it needs either VITE_API_BASE_URL set to a same-origin path
-// behind a real reverse proxy, or the backend to start sending CORS headers.
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ??
-  (import.meta.env.DEV ? '' : 'https://tms-api-m7yf.onrender.com');
+// SAME-ORIGIN BY DEFAULT, in dev and in production alike.
+//
+// The API sends no CORS headers, so the browser cannot call it cross-origin
+// at all. Both environments therefore proxy `/api` server-to-server and the
+// client just asks its own origin:
+//
+//   dev        -> vite.config.ts  `server.proxy`
+//   preview    -> vite.config.ts  `preview.proxy`
+//   production -> vercel.json     `rewrites`
+//
+// Setting VITE_API_BASE_URL points the client straight at another backend
+// and bypasses all three — only do that against a host that actually sends
+// CORS headers, or every request fails. Leave it unset (or empty) on Vercel.
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const API_PREFIX = '/api/v1';
 
